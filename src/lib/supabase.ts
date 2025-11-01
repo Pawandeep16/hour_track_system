@@ -1,0 +1,38 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export interface Department {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Task {
+  id: string;
+  department_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  employee_code: string;
+  created_at: string;
+}
+
+export interface TimeEntry {
+  id: string;
+  employee_id: string;
+  department_id: string;
+  task_id: string;
+  start_time: string;
+  end_time: string | null;
+  duration_minutes: number | null;
+  entry_date: string;
+  created_at: string;
+}
