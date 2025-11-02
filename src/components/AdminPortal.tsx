@@ -1439,7 +1439,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                         type="time"
                         value={newShiftEnd}
                         onChange={(e) => setNewShiftEnd(e.target.value)}
-                        className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                        className= " text-black px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                       />
                       <input
                         type="color"
