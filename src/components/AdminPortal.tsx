@@ -618,6 +618,117 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const generateExcelReport = () => {
     const workbook = XLSX.utils.book_new();
 
+    const filteredDepartments = summaryDeptFilter === 'all'
+      ? departmentSummaries
+      : departmentSummaries.filter(dept => dept.departmentId === summaryDeptFilter);
+
+    const departmentColors = [
+      'FFE6F2FF', 'FFD4EDDA', 'FFFCE8B2', 'FFDAEEF3',
+      'FFE8DAEF', 'FFFDEDC8', 'FFD4E6F1', 'FFFAD7E3'
+    ];
+
+    const detailedSummaryData: any[] = [];
+
+    const filterLabel = summaryDeptFilter === 'all'
+      ? 'All Departments'
+      : departments.find(d => d.id === summaryDeptFilter)?.name || 'Unknown';
+
+    const employeeTypeLabel = employeeTypeFilter === 'all'
+      ? 'All Employees'
+      : employeeTypeFilter === 'regular'
+      ? 'Regular Employees Only'
+      : 'Temp Employees Only';
+
+    detailedSummaryData.push({
+      'Task Name': 'REPORT FILTERS',
+      'Employee Count': '',
+      'Employee Names': '',
+      'Total Hours': ''
+    });
+
+    detailedSummaryData.push({
+      'Task Name': `Date: ${new Date(selectedDate).toLocaleDateString()}`,
+      'Employee Count': '',
+      'Employee Names': `Department Filter: ${filterLabel}`,
+      'Total Hours': `Employee Type: ${employeeTypeLabel}`
+    });
+
+    detailedSummaryData.push({
+      'Task Name': '',
+      'Employee Count': '',
+      'Employee Names': '',
+      'Total Hours': ''
+    });
+
+    let currentRow = 4;
+    const cellStyles: any = {};
+
+    filteredDepartments.forEach((dept, deptIndex) => {
+      const deptColor = departmentColors[deptIndex % departmentColors.length];
+
+      detailedSummaryData.push({
+        'Task Name': `DEPARTMENT: ${dept.departmentName.toUpperCase()}`,
+        'Employee Count': '',
+        'Employee Names': '',
+        'Total Hours': ''
+      });
+
+      const deptHeaderRow = currentRow;
+      cellStyles[`A${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
+      cellStyles[`B${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
+      cellStyles[`C${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
+      cellStyles[`D${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
+      currentRow++;
+
+      dept.tasks.forEach(task => {
+        const employeeNames = task.employees.map(emp => emp.name).join(', ');
+
+        detailedSummaryData.push({
+          'Task Name': task.taskName,
+          'Employee Count': `${task.employeeCount} employee${task.employeeCount !== 1 ? 's' : ''}`,
+          'Employee Names': employeeNames,
+          'Total Hours': formatDuration(task.totalMinutes)
+        });
+
+        cellStyles[`A${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
+        cellStyles[`B${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
+        cellStyles[`C${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
+        cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11, bold: true } };
+        currentRow++;
+      });
+
+      detailedSummaryData.push({
+        'Task Name': '',
+        'Employee Count': '',
+        'Employee Names': 'DEPARTMENT TOTAL:',
+        'Total Hours': formatDuration(dept.departmentTotalMinutes)
+      });
+
+      cellStyles[`C${currentRow}`] = { font: { bold: true, sz: 11 } };
+      cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: 'FFFFF200' } }, font: { bold: true, sz: 11 } };
+      currentRow++;
+
+      detailedSummaryData.push({
+        'Task Name': '',
+        'Employee Count': '',
+        'Employee Names': '',
+        'Total Hours': ''
+      });
+      currentRow++;
+    });
+
+    const grandTotal = filteredDepartments.reduce((sum, dept) => sum + dept.departmentTotalMinutes, 0);
+
+    detailedSummaryData.push({
+      'Task Name': '',
+      'Employee Count': '',
+      'Employee Names': 'GRAND TOTAL:',
+      'Total Hours': formatDuration(grandTotal)
+    });
+
+    cellStyles[`C${currentRow}`] = { font: { bold: true, sz: 13 } };
+    cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: 'FF00B050' } }, font: { bold: true, sz: 13, color: { rgb: 'FFFFFFFF' } } };
+
     const employeeData = employees.map(emp => ({
       'Employee Name': emp.name,
       'Employee ID': emp.employee_code,
@@ -646,43 +757,23 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       });
     });
 
-    const summaryData: any[] = [];
-    departmentSummaries.forEach(dept => {
-      dept.tasks.forEach(task => {
-        task.employees.forEach(emp => {
-          summaryData.push({
-            'Department': dept.departmentName,
-            'Task': task.taskName,
-            'Employee': emp.name,
-            'Duration': formatDuration(emp.minutes),
-            'Date': new Date(selectedDate).toLocaleDateString()
-          });
-        });
-      });
-    });
-
-    const summarySheet: any[] = [
-      { 'Report Summary': 'Time Tracking Report', 'Value': '' },
-      { 'Report Summary': 'Date', 'Value': new Date(selectedDate).toLocaleDateString() },
-      { 'Report Summary': 'Total Employees', 'Value': employees.length },
-      { 'Report Summary': 'Total Hours', 'Value': formatDuration(grandTotalMinutes) },
-      { 'Report Summary': '', 'Value': '' }
-    ];
-
-    const ws1 = XLSX.utils.json_to_sheet(summarySheet);
+    const ws1 = XLSX.utils.json_to_sheet(detailedSummaryData);
     const ws2 = XLSX.utils.json_to_sheet(employeeData);
     const ws3 = XLSX.utils.json_to_sheet(detailedData);
-    const ws4 = XLSX.utils.json_to_sheet(summaryData);
 
-    ws1['!cols'] = [{ wch: 20 }, { wch: 30 }];
+    Object.keys(cellStyles).forEach(cell => {
+      if (ws1[cell]) {
+        ws1[cell].s = cellStyles[cell];
+      }
+    });
+
+    ws1['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 35 }, { wch: 15 }];
     ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
     ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
-    ws4['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 }];
 
-    XLSX.utils.book_append_sheet(workbook, ws1, 'Summary');
+    XLSX.utils.book_append_sheet(workbook, ws1, 'Department Summary');
     XLSX.utils.book_append_sheet(workbook, ws2, 'Employee Overview');
     XLSX.utils.book_append_sheet(workbook, ws3, 'Detailed Report');
-    XLSX.utils.book_append_sheet(workbook, ws4, 'Department Summary');
 
     XLSX.writeFile(workbook, `time-tracking-report-${selectedDate}.xlsx`);
   };
