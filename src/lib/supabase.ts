@@ -36,3 +36,14 @@ export interface TimeEntry {
   entry_date: string;
   created_at: string;
 }
+
+export interface BreakEntry {
+  id: string;
+  employee_id: string;
+  break_type: 'paid' | 'unpaid';
+  start_time: string;
+  end_time: string | null;
+  duration_minutes: number | null;
+  entry_date: string;
+  created_at: string;
+}

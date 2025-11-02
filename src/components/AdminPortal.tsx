@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, Department, Task, Employee, TimeEntry } from '../lib/supabase';
+import { supabase, Department, Task, Employee, TimeEntry, BreakEntry } from '../lib/supabase';
 import {
   BarChart3,
   Users,
@@ -20,7 +20,9 @@ import * as XLSX from 'xlsx';
 
 interface EmployeeWithEntries extends Employee {
   entries: Array<TimeEntry & { task: Task; department: Department }>;
+  breaks: BreakEntry[];
   totalMinutes: number;
+  totalBreakMinutes: number;
 }
 
 interface DepartmentSummary {
@@ -50,6 +52,7 @@ export default function AdminPortal() {
   const [newTaskDept, setNewTaskDept] = useState('');
   const [newDeptName, setNewDeptName] = useState('');
   const [activeTab, setActiveTab] = useState<'individual' | 'summary' | 'manage' | 'employees'>('individual');
+  const [summaryDeptFilter, setSummaryDeptFilter] = useState<string>('all');
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState('');
 
@@ -137,20 +140,34 @@ export default function AdminPortal() {
           .eq('entry_date', selectedDate)
           .order('start_time');
 
+        const { data: breaks } = await supabase
+          .from('break_entries')
+          .select('*')
+          .eq('employee_id', employee.id)
+          .eq('entry_date', selectedDate)
+          .order('start_time');
+
         const totalMinutes = (entries || []).reduce(
           (sum, entry) => sum + (entry.duration_minutes || 0),
+          0
+        );
+
+        const totalBreakMinutes = (breaks || []).reduce(
+          (sum, breakEntry) => sum + (breakEntry.duration_minutes || 0),
           0
         );
 
         return {
           ...employee,
           entries: entries || [],
-          totalMinutes
+          breaks: breaks || [],
+          totalMinutes,
+          totalBreakMinutes
         } as EmployeeWithEntries;
       })
     );
 
-    setEmployees(employeesWithData.filter(e => e.entries.length > 0));
+    setEmployees(employeesWithData.filter(e => e.entries.length > 0 || e.breaks.length > 0));
   };
 
   const generateDepartmentSummaries = async () => {
@@ -406,6 +423,13 @@ export default function AdminPortal() {
       doc.setFont('helvetica', 'bold');
       doc.text(`Total Time: ${formatDuration(employee.totalMinutes)}`, 14, yPos);
 
+      if (employee.totalBreakMinutes > 0) {
+        yPos += 5;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Break Time: ${formatDuration(employee.totalBreakMinutes)}`, 14, yPos);
+      }
+
       yPos += 8;
 
       const tableData = employee.entries.map((entry: any) => [
@@ -438,101 +462,35 @@ export default function AdminPortal() {
       }
     });
 
-    if (departmentSummaries.length > 0) {
-      doc.addPage();
-      yPos = 20;
-
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Department Summary', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 15;
-
-      departmentSummaries.forEach((deptSummary) => {
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = 20;
-        }
-
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text(`${deptSummary.departmentName} Department`, 14, yPos);
-
-        yPos += 6;
-        doc.setFontSize(11);
-        doc.text(`Total: ${formatDuration(deptSummary.departmentTotalMinutes)}`, 14, yPos);
-        yPos += 10;
-
-        deptSummary.tasks.forEach((task) => {
-          if (yPos > 260) {
-            doc.addPage();
-            yPos = 20;
-          }
-
-          doc.setFontSize(11);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${task.taskName}`, 20, yPos);
-
-          yPos += 5;
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`${task.employeeCount} employee(s) - Total: ${formatDuration(task.totalMinutes)}`, 20, yPos);
-          yPos += 8;
-
-          const taskTableData = task.employees.map(emp => [
-            emp.name,
-            formatDuration(emp.minutes)
-          ]);
-
-          autoTable(doc, {
-            startY: yPos,
-            head: [['Employee', 'Duration']],
-            body: taskTableData,
-            theme: 'striped',
-            headStyles: { fillColor: [34, 197, 94], fontSize: 9 },
-            bodyStyles: { fontSize: 8 },
-            margin: { left: 20, right: 14 },
-            didDrawPage: (data) => {
-              yPos = data.cursor?.y || yPos;
-            }
-          });
-
-          yPos = (doc as any).lastAutoTable.finalY + 8;
-        });
-
-        yPos += 5;
-      });
-
-      if (yPos > 240) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      yPos += 10;
-      doc.setFillColor(220, 252, 231);
-      doc.rect(14, yPos - 5, pageWidth - 28, 20, 'F');
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(22, 163, 74);
-      doc.text('Total Hours for Entire Unit:', 20, yPos + 5);
-      doc.text(formatDuration(grandTotalMinutes), pageWidth - 20, yPos + 5, { align: 'right' });
-    }
-
     doc.save(`time-tracking-report-${selectedDate}.pdf`);
+  };
+
+  const getFilteredDepartmentSummaries = () => {
+    if (summaryDeptFilter === 'all') {
+      return departmentSummaries;
+    }
+    return departmentSummaries.filter(dept => dept.departmentId === summaryDeptFilter);
+  };
+
+  const getFilteredGrandTotal = () => {
+    if (summaryDeptFilter === 'all') {
+      return grandTotalMinutes;
+    }
+    const filtered = departmentSummaries.find(dept => dept.departmentId === summaryDeptFilter);
+    return filtered?.departmentTotalMinutes || 0;
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-          <div className="text-center mb-8">
-            <Lock className="w-16 h-16 mx-auto text-blue-600 mb-4" />
-            <h1 className="text-3xl font-bold text-gray-800">Admin Login</h1>
-            <p className="text-gray-600 mt-2">Enter your credentials to access the admin portal</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md">
+          <div className="text-center mb-6 sm:mb-8">
+            <Lock className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-blue-600 mb-4" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Admin Login</h1>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base">Enter your credentials to access the admin portal</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Username
@@ -562,173 +520,175 @@ export default function AdminPortal() {
             </div>
 
             {loginError && (
-              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl">
+              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
                 {loginError}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 sm:py-4 rounded-xl transition-colors"
             >
               Login
             </button>
           </form>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-           
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-8 text-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <BarChart3 className="w-10 h-10" />
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 sm:p-8 text-white">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10" />
                 <div>
-                  <h1 className="text-3xl font-bold">Admin Portal</h1>
-                  <p className="text-blue-100 mt-1">Employee Time Tracking Dashboard</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold">Admin Portal</h1>
+                  <p className="text-blue-100 mt-1 text-sm sm:text-base">Employee Time Tracking Dashboard</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5" />
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full lg:w-auto">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="px-4 py-2 rounded-lg text-gray-800 font-semibold border-2 border-white focus:outline-none"
+                    className="px-3 py-2 sm:px-4 rounded-lg text-gray-800 font-semibold border-2 border-white focus:outline-none text-sm sm:text-base"
                   />
                 </div>
                 <button
                   onClick={generatePDFReport}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-lg transition-colors font-semibold"
+                  className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-green-500 hover:bg-green-600 rounded-lg transition-colors font-semibold text-sm sm:text-base"
                   disabled={employees.length === 0}
                 >
                   <Download className="w-4 h-4" />
-                  Download PDF
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">PDF</span>
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-sm sm:text-base"
                 >
                   <LogOut className="w-4 h-4" />
-                  Logout
+                  <span className="hidden sm:inline">Logout</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="border-b border-gray-200">
-            <div className="flex gap-1 p-4">
+          <div className="border-b border-gray-200 overflow-x-auto">
+            <div className="flex gap-1 p-3 sm:p-4 min-w-max">
               <button
                 onClick={() => setActiveTab('individual')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${
                   activeTab === 'individual'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <Users className="w-4 h-4 inline mr-2" />
-                Individual Reports
+                Individual
               </button>
               <button
                 onClick={() => setActiveTab('summary')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${
                   activeTab === 'summary'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <BarChart3 className="w-4 h-4 inline mr-2" />
-                Task Summary
+                Summary
               </button>
               <button
                 onClick={() => setActiveTab('manage')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${
                   activeTab === 'manage'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <Filter className="w-4 h-4 inline mr-2" />
-                Manage Tasks
+                Manage
               </button>
               <button
                 onClick={() => setActiveTab('employees')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${
                   activeTab === 'employees'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <Users className="w-4 h-4 inline mr-2" />
-                Manage Employees
+                Employees
               </button>
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="p-4 sm:p-8">
             {activeTab === 'individual' && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-blue-600" />
+              <div className="space-y-4 sm:space-y-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   Individual Employee Reports
                 </h2>
 
                 {employees.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <Clock className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg">No time entries for this date</p>
+                    <Clock className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-base sm:text-lg">No time entries for this date</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     {employees.map(employee => (
-                      <div key={employee.id} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
-                        <div className="flex justify-between items-center mb-4">
+                      <div key={employee.id} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 sm:p-6 border-2 border-blue-200">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                           <div>
-                            <h3 className="text-xl font-bold text-gray-800">{employee.name}</h3>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-800">{employee.name}</h3>
                             <p className="text-xs text-gray-600 mt-1 font-mono">
                               Employee ID: {employee.employee_code}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="text-left sm:text-right">
                             <p className="text-sm text-gray-600">Total Time</p>
-                            <p className="text-2xl font-bold text-blue-700">
+                            <p className="text-xl sm:text-2xl font-bold text-blue-700">
                               {formatDuration(employee.totalMinutes)}
                             </p>
+                            {employee.totalBreakMinutes > 0 && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                Break: {formatDuration(employee.totalBreakMinutes)}
+                              </p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="bg-white rounded-lg overflow-hidden shadow">
-                          <table className="w-full">
+                        <div className="bg-white rounded-lg overflow-x-auto shadow">
+                          <table className="w-full min-w-max">
                             <thead className="bg-gray-50 border-b-2 border-gray-200">
                               <tr>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Department</th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Task</th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Start Time</th>
-                                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">End Time</th>
-                                <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Duration</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Department</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Task</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Start</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">End</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-right text-xs sm:text-sm font-semibold text-gray-700">Duration</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                               {employee.entries.map((entry: any) => (
                                 <tr key={entry.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 text-sm text-gray-700">{entry.department.name}</td>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.task.name}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-600">
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-700">{entry.department.name}</td>
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium text-gray-900">{entry.task.name}</td>
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-600">
                                     {new Date(entry.start_time).toLocaleTimeString()}
                                   </td>
-                                  <td className="px-4 py-3 text-sm text-gray-600">
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-600">
                                     {entry.end_time ? new Date(entry.end_time).toLocaleTimeString() : 'In Progress'}
                                   </td>
-                                  <td className="px-4 py-3 text-sm font-semibold text-blue-700 text-right">
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700 text-right">
                                     {formatDuration(entry.duration_minutes || 0)}
                                   </td>
                                 </tr>
@@ -744,58 +704,74 @@ export default function AdminPortal() {
             )}
 
             {activeTab === 'summary' && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <BarChart3 className="w-6 h-6 text-blue-600" />
-                  Department Summary
-                </h2>
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                    Department Summary
+                  </h2>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filter:</label>
+                    <select
+                      value={summaryDeptFilter}
+                      onChange={(e) => setSummaryDeptFilter(e.target.value)}
+                      className="flex-1 sm:flex-initial px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                    >
+                      <option value="all">All Departments</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
                 {departmentSummaries.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg">No completed tasks for this date</p>
+                    <BarChart3 className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-base sm:text-lg">No completed tasks for this date</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {departmentSummaries.map((deptSummary) => (
-                      <div key={deptSummary.departmentId} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-300 shadow-lg">
-                        <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-blue-200">
-                          <h3 className="text-2xl font-bold text-gray-800">{deptSummary.departmentName} Department</h3>
-                          <div className="text-right">
+                  <div className="space-y-4 sm:space-y-6">
+                    {getFilteredDepartmentSummaries().map((deptSummary) => (
+                      <div key={deptSummary.departmentId} className="bg-gradient-to-r from-blue-50 to-slate-50 rounded-xl p-4 sm:p-6 border-2 border-blue-300 shadow-lg">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 pb-4 border-b-2 border-blue-200 gap-3">
+                          <h3 className="text-xl sm:text-2xl font-bold text-gray-800">{deptSummary.departmentName} Department</h3>
+                          <div className="text-left sm:text-right">
                             <p className="text-sm text-gray-600">Department Total</p>
-                            <p className="text-3xl font-bold text-blue-700">
+                            <p className="text-2xl sm:text-3xl font-bold text-blue-700">
                               {formatDuration(deptSummary.departmentTotalMinutes)}
                             </p>
                           </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3 sm:space-y-4">
                           {deptSummary.tasks.map((task, taskIdx) => (
-                            <div key={taskIdx} className="bg-white rounded-lg p-5 border-2 border-gray-200 shadow">
-                              <div className="flex justify-between items-start mb-4">
-                                <div>
-                                  <h4 className="text-lg font-bold text-gray-800">{task.taskName}</h4>
-                                  <p className="text-sm text-gray-600 mt-1">
+                            <div key={taskIdx} className="bg-white rounded-lg p-4 sm:p-5 border-2 border-gray-200 shadow">
+                              <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3">
+                                <div className="flex-1">
+                                  <h4 className="text-base sm:text-lg font-bold text-gray-800">{task.taskName}</h4>
+                                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
                                     {task.employeeCount} {task.employeeCount === 1 ? 'employee' : 'employees'} worked on this task
                                   </p>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-sm text-gray-600">Task Total</p>
-                                  <p className="text-2xl font-bold text-green-700">
+                                <div className="text-left sm:text-right">
+                                  <p className="text-xs sm:text-sm text-gray-600">Task Total</p>
+                                  <p className="text-xl sm:text-2xl font-bold text-green-700">
                                     {formatDuration(task.totalMinutes)}
                                   </p>
                                 </div>
                               </div>
 
-                              <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                                 <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
                                   Employee Breakdown
                                 </p>
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
                                   {task.employees.map((emp, empIdx) => (
-                                    <div key={empIdx} className="bg-white rounded-lg p-3 border border-gray-300">
-                                      <p className="text-sm font-medium text-gray-800 truncate">{emp.name}</p>
-                                      <p className="text-lg font-bold text-blue-700">
+                                    <div key={empIdx} className="bg-white rounded-lg p-2 sm:p-3 border border-gray-300">
+                                      <p className="text-xs sm:text-sm font-medium text-gray-800 truncate">{emp.name}</p>
+                                      <p className="text-base sm:text-lg font-bold text-blue-700">
                                         {formatDuration(emp.minutes)}
                                       </p>
                                     </div>
@@ -808,15 +784,19 @@ export default function AdminPortal() {
                       </div>
                     ))}
 
-                    <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-8 border-4 border-green-300 shadow-2xl">
-                      <div className="flex justify-between items-center">
+                    <div className="bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-6 sm:p-8 border-4 border-green-300 shadow-2xl">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div>
-                          <p className="text-lg text-gray-700 font-semibold">Total Hours for Entire Unit</p>
-                          <p className="text-sm text-gray-600 mt-1">All departments combined</p>
+                          <p className="text-base sm:text-lg text-gray-700 font-semibold">
+                            {summaryDeptFilter === 'all' ? 'Total Hours for Entire Unit' : `Total for ${departments.find(d => d.id === summaryDeptFilter)?.name}`}
+                          </p>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                            {summaryDeptFilter === 'all' ? 'All departments combined' : 'Department total'}
+                          </p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-5xl font-bold text-green-700">
-                            {formatDuration(grandTotalMinutes)}
+                        <div className="text-left sm:text-right">
+                          <p className="text-3xl sm:text-5xl font-bold text-green-700">
+                            {formatDuration(getFilteredGrandTotal())}
                           </p>
                         </div>
                       </div>
@@ -827,13 +807,13 @@ export default function AdminPortal() {
             )}
 
             {activeTab === 'manage' && (
-              <div className="space-y-8">
+              <div className="space-y-6 sm:space-y-8">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <Plus className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     Add New Department
                   </h2>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="text"
                       value={newDeptName}
@@ -843,16 +823,16 @@ export default function AdminPortal() {
                     />
                     <button
                       onClick={addDepartment}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors whitespace-nowrap"
                     >
                       Add Department
                     </button>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {departments.map(dept => (
                       <div key={dept.id} className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200 flex justify-between items-center">
-                        <span className="font-semibold text-gray-800">{dept.name}</span>
+                        <span className="font-semibold text-gray-800 text-sm sm:text-base">{dept.name}</span>
                         <button
                           onClick={() => deleteDepartment(dept.id)}
                           className="text-red-600 hover:text-red-700 transition-colors"
@@ -865,11 +845,11 @@ export default function AdminPortal() {
                 </div>
 
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <Plus className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     Add New Task
                   </h2>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <select
                       value={newTaskDept}
                       onChange={(e) => setNewTaskDept(e.target.value)}
@@ -889,7 +869,7 @@ export default function AdminPortal() {
                     />
                     <button
                       onClick={addTask}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors whitespace-nowrap"
                     >
                       Add Task
                     </button>
@@ -902,11 +882,11 @@ export default function AdminPortal() {
 
                       return (
                         <div key={dept.id} className="bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
-                          <h3 className="font-bold text-gray-800 mb-3">{dept.name}</h3>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          <h3 className="font-bold text-gray-800 mb-3 text-sm sm:text-base">{dept.name}</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                             {deptTasks.map(task => (
                               <div key={task.id} className="bg-white rounded-lg p-3 border border-gray-300 flex justify-between items-center">
-                                <span className="text-sm text-gray-800">{task.name}</span>
+                                <span className="text-xs sm:text-sm text-gray-800">{task.name}</span>
                                 <button
                                   onClick={() => deleteTask(task.id)}
                                   className="text-red-600 hover:text-red-700 transition-colors"
@@ -925,31 +905,31 @@ export default function AdminPortal() {
             )}
 
             {activeTab === 'employees' && (
-              <div className="space-y-8">
+              <div className="space-y-6 sm:space-y-8">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <Users className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     Manage Employees
                   </h2>
 
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Import/Export Employees</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Import/Export Employees</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                       <button
                         onClick={downloadEmployeeTemplate}
-                        className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                        className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                       >
                         <Download className="w-4 h-4" />
                         Download Template
                       </button>
                       <button
                         onClick={downloadEmployeeCSV}
-                        className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                        className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                       >
                         <Download className="w-4 h-4" />
-                        Export Employee List
+                        Export List
                       </button>
-                      <label className="px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <label className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base">
                         <Plus className="w-4 h-4" />
                         Import CSV/XLSX
                         <input
@@ -960,14 +940,14 @@ export default function AdminPortal() {
                         />
                       </label>
                     </div>
-                    <p className="text-sm text-gray-600 mt-4">
+                    <p className="text-xs sm:text-sm text-gray-600 mt-4">
                       CSV/XLSX file should have a column named "name" with employee full names. Employee IDs will be generated automatically.
                     </p>
                   </div>
 
-                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 mb-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Add Individual Employee</h3>
-                    <div className="flex gap-3">
+                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Add Individual Employee</h3>
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <input
                         type="text"
                         value={newEmployeeName}
@@ -977,7 +957,7 @@ export default function AdminPortal() {
                       />
                       <button
                         onClick={addEmployee}
-                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors"
+                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors whitespace-nowrap"
                       >
                         Add Employee
                       </button>
@@ -986,31 +966,31 @@ export default function AdminPortal() {
                 </div>
 
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
                     Employee List ({allEmployees.length} total)
                   </h3>
 
                   {allEmployees.length === 0 ? (
                     <div className="text-center py-12 text-gray-500">
-                      <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">No employees registered yet</p>
+                      <Users className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 opacity-50" />
+                      <p className="text-base sm:text-lg">No employees registered yet</p>
                     </div>
                   ) : (
-                    <div className="grid gap-4">
+                    <div className="grid gap-3 sm:gap-4">
                       {allEmployees.map((employee) => (
-                        <div key={employee.id} className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <h4 className="text-lg font-bold text-gray-800">{employee.name}</h4>
-                              <p className="text-sm text-gray-600 font-mono mt-1">
+                        <div key={employee.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-blue-300 transition-colors">
+                          <div className="flex justify-between items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-base sm:text-lg font-bold text-gray-800 truncate">{employee.name}</h4>
+                              <p className="text-xs sm:text-sm text-gray-600 font-mono mt-1 truncate">
                                 ID: {employee.employee_code}
                               </p>
                             </div>
                             <button
                               onClick={() => deleteEmployee(employee.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                             >
-                              <Trash2 className="w-5 h-5" />
+                              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                             </button>
                           </div>
                         </div>
