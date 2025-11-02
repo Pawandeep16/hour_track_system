@@ -84,57 +84,59 @@ function App() {
         )}
       </main>
 
-      <footer className={`${isDarkMode ? 'bg-slate-900/70 border-slate-800' : 'bg-white/80 border-gray-200'} backdrop-blur-sm border-t py-8`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center space-y-4">
-            <div className={`flex items-center gap-2 text-base sm:text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              <span>Made with</span>
-              <Heart className="w-5 h-5 text-red-400 fill-red-400 animate-pulse" />
-              <span>and ambitions by</span>
-            </div>
+      {showNavigation && (
+        <footer className={`${isDarkMode ? 'bg-slate-900/70 border-slate-800' : 'bg-white/80 border-gray-200'} backdrop-blur-sm border-t py-8`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col items-center space-y-4">
+              <div className={`flex items-center gap-2 text-base sm:text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span>Made with</span>
+                <Heart className="w-5 h-5 text-red-400 fill-red-400 animate-pulse" />
+                <span>and ambitions by</span>
+              </div>
 
-            <h3 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-              Pawandeep Singh Thandi
-            </h3>
+              <h3 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                Pawandeep Singh Thandi
+              </h3>
 
-            <div className="flex items-center gap-4 sm:gap-6">
-              <a
-                href="https://www.linkedin.com/in/pawandeep-thandi-2432031ab/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
-              >
-                <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline text-sm">LinkedIn</span>
-              </a>
+              <div className="flex items-center gap-4 sm:gap-6">
+                <a
+                  href="https://www.linkedin.com/in/pawandeep-thandi-2432031ab/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
+                >
+                  <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline text-sm">LinkedIn</span>
+                </a>
 
-              <a
-                href="https://github.com/Pawandeep16"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
-              >
-                <Github className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline text-sm">GitHub</span>
-              </a>
+                <a
+                  href="https://github.com/Pawandeep16"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
+                >
+                  <Github className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline text-sm">GitHub</span>
+                </a>
 
-              <a
-                href="https://pawandeep-portfolio.vercel.app/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
-              >
-                <Globe className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline text-sm">Website</span>
-              </a>
-            </div>
+                <a
+                  href="https://pawandeep-portfolio.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 ${isDarkMode ? 'text-gray-300 hover:text-blue-400' : 'text-gray-600 hover:text-blue-600'} transition-colors group`}
+                >
+                  <Globe className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline text-sm">Website</span>
+                </a>
+              </div>
 
-            <div className={`text-sm ${isDarkMode ? 'text-gray-400 border-slate-700' : 'text-gray-500 border-gray-300'} pt-4 border-t w-full text-center`}>
-              <p>&copy; {new Date().getFullYear()} Time Tracking System. All rights reserved.</p>
+              <div className={`text-sm ${isDarkMode ? 'text-gray-400 border-slate-700' : 'text-gray-500 border-gray-300'} pt-4 border-t w-full text-center`}>
+                <p>&copy; {new Date().getFullYear()} Time Tracking System. All rights reserved.</p>
+              </div>
             </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
