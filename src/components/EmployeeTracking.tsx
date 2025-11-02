@@ -684,7 +684,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-semibold text-gray-800 text-sm sm:text-base">{entry.task.name}</p>
                               <span className="text-xs text-gray-500 font-medium">
-                                {new Date(entry.entry_date).toLocaleDateString()}
+                                {entry.entry_date}
                               </span>
                             </div>
                             <p className="text-xs sm:text-sm text-gray-500">

@@ -73,6 +73,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [newShiftColor, setNewShiftColor] = useState('#3b82f6');
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [individualSearchQuery, setIndividualSearchQuery] = useState('');
+  const [summarySearchQuery, setSummarySearchQuery] = useState('');
   const [showResetPinModal, setShowResetPinModal] = useState(false);
   const [selectedEmployeeForPinReset, setSelectedEmployeeForPinReset] = useState<Employee | null>(null);
 
@@ -615,18 +616,31 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const getFilteredDepartmentSummaries = () => {
-    if (summaryDeptFilter === 'all') {
-      return departmentSummaries;
+    let filtered = summaryDeptFilter === 'all'
+      ? departmentSummaries
+      : departmentSummaries.filter(dept => dept.departmentId === summaryDeptFilter);
+
+    if (summarySearchQuery.trim() !== '') {
+      const searchLower = summarySearchQuery.toLowerCase();
+      filtered = filtered.map(dept => {
+        const filteredTasks = dept.tasks.filter(task =>
+          task.taskName.toLowerCase().includes(searchLower) ||
+          task.employees.some(emp => emp.name.toLowerCase().includes(searchLower))
+        );
+        return {
+          ...dept,
+          tasks: filteredTasks,
+          departmentTotalMinutes: filteredTasks.reduce((sum, task) => sum + task.totalMinutes, 0)
+        };
+      }).filter(dept => dept.tasks.length > 0);
     }
-    return departmentSummaries.filter(dept => dept.departmentId === summaryDeptFilter);
+
+    return filtered;
   };
 
   const getFilteredGrandTotal = () => {
-    if (summaryDeptFilter === 'all') {
-      return grandTotalMinutes;
-    }
-    const filtered = departmentSummaries.find(dept => dept.departmentId === summaryDeptFilter);
-    return filtered?.departmentTotalMinutes || 0;
+    const filteredSummaries = getFilteredDepartmentSummaries();
+    return filteredSummaries.reduce((sum, dept) => sum + dept.departmentTotalMinutes, 0);
   };
 
   const addShift = async () => {
@@ -680,13 +694,12 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
         if (!matchesDept) return;
 
         const task = entry.task;
-        const entryDate = new Date(entry.entry_date);
         const startTime = new Date(entry.start_time);
         const endTime = entry.end_time ? new Date(entry.end_time) : null;
         const duration = entry.duration_minutes || 0;
 
         data.push({
-          'Date': entryDate.toLocaleDateString('en-US'),
+          'Date': entry.entry_date,
           'Task': task.name,
           'Associates': employee.name,
           'Notes': task.name,
@@ -1087,7 +1100,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                               {employee.entries.map((entry: any) => (
                                 <tr key={entry.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-700 font-medium">
-                                    {new Date(entry.entry_date).toLocaleDateString()}
+                                    {entry.entry_date}
                                   </td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-700">{entry.department.name}</td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium text-gray-900">{entry.task.name}</td>
@@ -1114,11 +1127,24 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
             {activeTab === 'summary' && (
               <div className="space-y-4 sm:space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                    Department Summary
-                  </h2>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                      Department Summary
+                    </h2>
+
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={summarySearchQuery}
+                        onChange={(e) => setSummarySearchQuery(e.target.value)}
+                        placeholder="Search tasks or employees..."
+                        className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      />
+                    </div>
+                  </div>
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
                     <div className="flex items-center gap-2 w-full sm:w-auto">
