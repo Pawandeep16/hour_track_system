@@ -1445,7 +1445,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                         type="color"
                         value={newShiftColor}
                         onChange={(e) => setNewShiftColor(e.target.value)}
-                        className="h-12 px-2 py-1 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none cursor-pointer"
+                        className=" text-black h-12 px-2 py-1 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none cursor-pointer"
                       />
                       <button
                         onClick={addShift}
