@@ -25,6 +25,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const [nameError, setNameError] = useState('');
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
+  const [showNameEntry, setShowNameEntry] = useState(true);
 
   useEffect(() => {
     loadDepartments();
@@ -54,6 +55,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     const storedEmployeeId = localStorage.getItem('employee_id');
     if (storedEmployeeId) {
       loadEmployeeById(storedEmployeeId);
+      setShowNameEntry(false);
     }
   };
 
@@ -67,8 +69,10 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     if (data) {
       setCurrentEmployee(data);
       setEmployeeName(data.name);
+      setShowNameEntry(false);
     } else {
       localStorage.removeItem('employee_id');
+      setShowNameEntry(true);
     }
   };
 
@@ -166,32 +170,30 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     }
   };
 
-  const handleStart = async () => {
+  const handleSignIn = async () => {
     if (!employeeName.trim()) {
       setNameError('Please enter your name');
       return;
     }
 
-    let employee = currentEmployee;
+    const { data: existingEmployee } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('name', employeeName.trim())
+      .maybeSingle();
 
-    if (!employee) {
-      const { data: existingEmployee } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('name', employeeName.trim())
-        .maybeSingle();
-
-      if (existingEmployee) {
-        employee = existingEmployee;
-        setCurrentEmployee(employee);
-        localStorage.setItem('employee_id', employee.id);
-        setNameError('');
-        return;
-      } else {
-        setNameError('Employee name not found in the system. Please enter your exact full name as registered or contact admin.');
-        return;
-      }
+    if (existingEmployee) {
+      setCurrentEmployee(existingEmployee);
+      localStorage.setItem('employee_id', existingEmployee.id);
+      setNameError('');
+      setShowNameEntry(false);
+    } else {
+      setNameError('Employee name not found in the system. Please enter your exact full name as registered or contact admin.');
     }
+  };
+
+  const handleStart = async () => {
+    if (!currentEmployee) return;
 
     if (!selectedDepartment || !selectedTask) {
       alert('Please select department and task');
@@ -322,6 +324,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     setSelectedDepartment('');
     setSelectedTask('');
     setCurrentShift(null);
+    setShowNameEntry(true);
     onLoginStateChange(false);
   };
 
@@ -365,7 +368,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
             )}
           </div>
 
-          {!currentEmployee ? (
+          {showNameEntry ? (
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -379,6 +382,11 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                     setEmployeeName(e.target.value);
                     setNameError('');
                   }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSignIn();
+                    }
+                  }}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-base sm:text-lg"
                   placeholder="Enter your exact full name"
                 />
@@ -387,47 +395,18 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Department
-                </label>
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-base sm:text-lg"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedDepartment && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Task
-                  </label>
-                  <select
-                    value={selectedTask}
-                    onChange={(e) => setSelectedTask(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-base sm:text-lg"
-                  >
-                    <option value="">Select Task</option>
-                    {tasks.map(task => (
-                      <option key={task.id} value={task.id}>{task.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <button
-                onClick={handleStart}
+                onClick={handleSignIn}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg"
               >
-                <Play className="w-5 h-5 sm:w-6 sm:h-6" />
-                Start Working
+                <User className="w-5 h-5 sm:w-6 sm:h-6" />
+                Sign In
               </button>
+            </div>
+          ) : !currentEmployee ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 mt-4">Loading...</p>
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-6">
