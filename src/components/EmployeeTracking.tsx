@@ -3,8 +3,8 @@ import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } fr
 import { Clock, Play, StopCircle, User, LogOut, Coffee } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
 
-const PAID_BREAK_LIMIT = 30;
-const UNPAID_BREAK_LIMIT = 3;
+const PAID_BREAK_LIMIT = 15;
+const UNPAID_BREAK_LIMIT = 30;
 
 export default function EmployeeTracking() {
   const [employeeName, setEmployeeName] = useState('');
