@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
-import { Clock, Play, StopCircle, User, LogOut, Coffee } from 'lucide-react';
+import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
+import PinModal from './PinModal';
 
 const PAID_BREAK_LIMIT = 15;
 const UNPAID_BREAK_LIMIT = 30;
@@ -26,6 +27,10 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
   const [showNameEntry, setShowNameEntry] = useState(true);
+  const [showPinSetup, setShowPinSetup] = useState(false);
+  const [showPinVerify, setShowPinVerify] = useState(false);
+  const [tempEmployee, setTempEmployee] = useState<Employee | null>(null);
+  const [showResetPin, setShowResetPin] = useState(false);
 
   useEffect(() => {
     loadDepartments();
@@ -183,12 +188,70 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .maybeSingle();
 
     if (existingEmployee) {
-      setCurrentEmployee(existingEmployee);
-      localStorage.setItem('employee_id', existingEmployee.id);
+      setTempEmployee(existingEmployee);
       setNameError('');
-      setShowNameEntry(false);
+
+      if (!existingEmployee.security_pin) {
+        setShowPinSetup(true);
+      } else {
+        setShowPinVerify(true);
+      }
     } else {
       setNameError('Employee name not found in the system. Please enter your exact full name as registered or contact admin.');
+    }
+  };
+
+  const handlePinSetup = async (pin: string) => {
+    if (!tempEmployee) return;
+
+    const { error } = await supabase
+      .from('employees')
+      .update({
+        security_pin: pin,
+        pin_set_at: new Date().toISOString()
+      })
+      .eq('id', tempEmployee.id);
+
+    if (!error) {
+      setCurrentEmployee({ ...tempEmployee, security_pin: pin, pin_set_at: new Date().toISOString() });
+      localStorage.setItem('employee_id', tempEmployee.id);
+      setShowPinSetup(false);
+      setShowNameEntry(false);
+      setTempEmployee(null);
+    }
+  };
+
+  const handlePinVerify = async (pin: string) => {
+    if (!tempEmployee) return;
+
+    if (pin === tempEmployee.security_pin) {
+      setCurrentEmployee(tempEmployee);
+      localStorage.setItem('employee_id', tempEmployee.id);
+      setShowPinVerify(false);
+      setShowNameEntry(false);
+      setTempEmployee(null);
+    } else {
+      alert('Incorrect PIN. Please try again.');
+    }
+  };
+
+  const handleResetPin = async (newPin: string) => {
+    if (!currentEmployee) return;
+
+    const { error } = await supabase
+      .from('employees')
+      .update({
+        security_pin: newPin,
+        pin_set_at: new Date().toISOString()
+      })
+      .eq('id', currentEmployee.id);
+
+    if (!error) {
+      setCurrentEmployee({ ...currentEmployee, security_pin: newPin, pin_set_at: new Date().toISOString() });
+      setShowResetPin(false);
+      alert('PIN reset successfully!');
+    } else {
+      alert('Failed to reset PIN. Please try again.');
     }
   };
 
@@ -474,6 +537,16 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                 </div>
               ) : !isStarted ? (
                 <div className="space-y-4">
+                  <div className="flex justify-end mb-2">
+                    <button
+                      onClick={() => setShowResetPin(true)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Reset PIN
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Department
@@ -629,6 +702,33 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
           )}
         </div>
       </div>
+
+      <PinModal
+        isOpen={showPinSetup}
+        onClose={() => {}}
+        onSubmit={handlePinSetup}
+        title="Set Up Your PIN"
+        isSetup={true}
+      />
+
+      <PinModal
+        isOpen={showPinVerify}
+        onClose={() => {
+          setShowPinVerify(false);
+          setTempEmployee(null);
+        }}
+        onSubmit={handlePinVerify}
+        title="Enter Your PIN"
+        isSetup={false}
+      />
+
+      <PinModal
+        isOpen={showResetPin}
+        onClose={() => setShowResetPin(false)}
+        onSubmit={handleResetPin}
+        title="Reset Your PIN"
+        isSetup={true}
+      />
     </div>
   );
 }

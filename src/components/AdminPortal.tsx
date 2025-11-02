@@ -10,10 +10,12 @@ import {
   Filter,
   Lock,
   LogOut,
-  Download
+  Download,
+  Search
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import PinModal from './PinModal';
 
 import Papa from "papaparse";
 import * as XLSX from 'xlsx';
@@ -67,6 +69,10 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [newShiftStart, setNewShiftStart] = useState('06:00');
   const [newShiftEnd, setNewShiftEnd] = useState('14:00');
   const [newShiftColor, setNewShiftColor] = useState('#3b82f6');
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [individualSearchQuery, setIndividualSearchQuery] = useState('');
+  const [showResetPinModal, setShowResetPinModal] = useState(false);
+  const [selectedEmployeeForPinReset, setSelectedEmployeeForPinReset] = useState<Employee | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -350,6 +356,32 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     if (!confirm('Are you sure you want to delete this employee?')) return;
     await supabase.from('employees').delete().eq('id', empId);
     loadAllEmployees();
+  };
+
+  const handleResetEmployeePin = async (newPin: string) => {
+    if (!selectedEmployeeForPinReset) return;
+
+    const { error } = await supabase
+      .from('employees')
+      .update({
+        security_pin: newPin,
+        pin_set_at: new Date().toISOString()
+      })
+      .eq('id', selectedEmployeeForPinReset.id);
+
+    if (!error) {
+      setShowResetPinModal(false);
+      setSelectedEmployeeForPinReset(null);
+      loadAllEmployees();
+      alert('Employee PIN reset successfully!');
+    } else {
+      alert('Failed to reset PIN. Please try again.');
+    }
+  };
+
+  const openResetPinModal = (employee: Employee) => {
+    setSelectedEmployeeForPinReset(employee);
+    setShowResetPinModal(true);
   };
 
   const downloadEmployeeCSV = () => {
@@ -948,10 +980,23 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           <div className="p-4 sm:p-8">
             {activeTab === 'individual' && (
               <div className="space-y-4 sm:space-y-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                  Individual Employee Reports
-                </h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                    Individual Employee Reports
+                  </h2>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={individualSearchQuery}
+                      onChange={(e) => setIndividualSearchQuery(e.target.value)}
+                      placeholder="Search employees..."
+                      className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
 
                 {employees.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
@@ -960,7 +1005,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                   </div>
                 ) : (
                   <div className="space-y-4 sm:space-y-6">
-                    {employees.map(employee => (
+                    {employees
+                      .filter(emp =>
+                        individualSearchQuery === '' ||
+                        emp.name.toLowerCase().includes(individualSearchQuery.toLowerCase()) ||
+                        emp.employee_code.toLowerCase().includes(individualSearchQuery.toLowerCase())
+                      )
+                      .map(employee => (
                       <div key={employee.id} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 sm:p-6 border-2 border-blue-200">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                           <div>
@@ -1369,9 +1420,41 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                 </div>
 
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
-                    Employee List ({allEmployees.length} total)
-                  </h3>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800">
+                      Employee List ({allEmployees.filter(emp => {
+                        const matchesSearch = employeeSearchQuery === '' ||
+                          emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+                          emp.employee_code.toLowerCase().includes(employeeSearchQuery.toLowerCase());
+                        const matchesFilter = employeeTypeFilter === 'all' ||
+                          (employeeTypeFilter === 'temp' && emp.is_temp) ||
+                          (employeeTypeFilter === 'regular' && !emp.is_temp);
+                        return matchesSearch && matchesFilter;
+                      }).length} shown)
+                    </h3>
+
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:flex-initial">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={employeeSearchQuery}
+                          onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                          placeholder="Search employees..."
+                          className="w-full sm:w-64 pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                        />
+                      </div>
+                      <select
+                        value={employeeTypeFilter}
+                        onChange={(e) => setEmployeeTypeFilter(e.target.value as 'all' | 'regular' | 'temp')}
+                        className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      >
+                        <option value="all">All Types</option>
+                        <option value="regular">Regular</option>
+                        <option value="temp">Temp</option>
+                      </select>
+                    </div>
+                  </div>
 
                   {allEmployees.length === 0 ? (
                     <div className="text-center py-12 text-gray-500">
@@ -1380,7 +1463,17 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                     </div>
                   ) : (
                     <div className="grid gap-3 sm:gap-4">
-                      {allEmployees.map((employee) => (
+                      {allEmployees
+                        .filter(emp => {
+                          const matchesSearch = employeeSearchQuery === '' ||
+                            emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+                            emp.employee_code.toLowerCase().includes(employeeSearchQuery.toLowerCase());
+                          const matchesFilter = employeeTypeFilter === 'all' ||
+                            (employeeTypeFilter === 'temp' && emp.is_temp) ||
+                            (employeeTypeFilter === 'regular' && !emp.is_temp);
+                          return matchesSearch && matchesFilter;
+                        })
+                        .map((employee) => (
                         <div key={employee.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-blue-300 transition-colors">
                           <div className="flex justify-between items-center gap-3">
                             <div className="flex-1 min-w-0">
@@ -1391,17 +1484,33 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                                     TEMP
                                   </span>
                                 )}
+                                {employee.security_pin && (
+                                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    PIN SET
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs sm:text-sm text-gray-600 font-mono mt-1 truncate">
                                 ID: {employee.employee_code}
                               </p>
                             </div>
-                            <button
-                              onClick={() => deleteEmployee(employee.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                            >
-                              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                            </button>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => openResetPinModal(employee)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Reset PIN"
+                              >
+                                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+                              </button>
+                              <button
+                                onClick={() => deleteEmployee(employee.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Employee"
+                              >
+                                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1504,6 +1613,17 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           </div>
         </div>
       </div>
+
+      <PinModal
+        isOpen={showResetPinModal}
+        onClose={() => {
+          setShowResetPinModal(false);
+          setSelectedEmployeeForPinReset(null);
+        }}
+        onSubmit={handleResetEmployeePin}
+        title={`Reset PIN for ${selectedEmployeeForPinReset?.name || 'Employee'}`}
+        isSetup={true}
+      />
     </div>
   );
 }
