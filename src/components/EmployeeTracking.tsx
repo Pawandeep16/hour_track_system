@@ -681,7 +681,12 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                       <div key={entry.id} className="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div className="flex-1">
-                            <p className="font-semibold text-gray-800 text-sm sm:text-base">{entry.task.name}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-gray-800 text-sm sm:text-base">{entry.task.name}</p>
+                              <span className="text-xs text-gray-500 font-medium">
+                                {new Date(entry.entry_date).toLocaleDateString()}
+                              </span>
+                            </div>
                             <p className="text-xs sm:text-sm text-gray-500">
                               {new Date(entry.start_time).toLocaleTimeString()} -
                               {entry.end_time ? ` ${new Date(entry.end_time).toLocaleTimeString()}` : ' In Progress'}

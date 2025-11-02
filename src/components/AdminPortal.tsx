@@ -219,7 +219,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     const { data: entries } = await supabase
       .from('time_entries')
       .select('*, task:tasks(*), department:departments(*), employee:employees(*)')
-      .eq('entry_date', selectedDate)
+      .gte('entry_date', startDate)
+      .lte('entry_date', endDate)
       .not('end_time', 'is', null);
 
     if (!entries) return;
