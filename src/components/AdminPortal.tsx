@@ -679,11 +679,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
         if (!matchesDept) return;
 
         const task = entry.task;
+        const entryDate = new Date(entry.entry_date);
         const startTime = new Date(entry.start_time);
         const endTime = entry.end_time ? new Date(entry.end_time) : null;
         const duration = entry.duration_minutes || 0;
 
         data.push({
+          'Date': entryDate.toLocaleDateString('en-US'),
           'Task': task.name,
           'Associates': employee.name,
           'Notes': task.name,
@@ -707,7 +709,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     headerData.push({
       '#': 'Date Range:',
-      'Task': `${startDate} to ${endDate}`,
+      'Date': `${startDate} to ${endDate}`,
+      'Task': '',
       'Associates': '',
       'Employee Count': '',
       'Notes': '',
@@ -718,7 +721,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     headerData.push({
       '#': 'Department:',
-      'Task': filterLabel,
+      'Date': filterLabel,
+      'Task': '',
       'Associates': '',
       'Employee Count': '',
       'Notes': '',
@@ -729,7 +733,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     headerData.push({
       '#': 'Employee Type:',
-      'Task': employeeTypeLabel,
+      'Date': employeeTypeLabel,
+      'Task': '',
       'Associates': '',
       'Employee Count': '',
       'Notes': '',
@@ -740,6 +745,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     headerData.push({
       '#': '',
+      'Date': '',
       'Task': '',
       'Associates': '',
       'Employee Count': '',
@@ -763,6 +769,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       rows.forEach((row, index) => {
         finalData.push({
           '#': index === 0 ? taskIndex.toString() : '',
+          'Date': row['Date'],
           'Task': index === 0 ? taskName : '',
           'Associates': row['Associates'],
           'Employee Count': index === 0 ? employeeCount.toString() : '',
@@ -777,6 +784,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     finalData.push({
       '#': '',
+      'Date': '',
       'Task': '',
       'Associates': '',
       'Employee Count': '',
@@ -791,7 +799,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
     for (let row = 0; row < 3; row++) {
-      for (let col = 0; col <= 7; col++) {
+      for (let col = 0; col <= 8; col++) {
         const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
         if (!worksheet[cellRef]) continue;
         worksheet[cellRef].s = {
@@ -803,6 +811,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     worksheet['!cols'] = [
       { wch: 5 },
+      { wch: 12 },
       { wch: 20 },
       { wch: 25 },
       { wch: 12 },
@@ -1065,6 +1074,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                           <table className="w-full min-w-max">
                             <thead className="bg-gray-50 border-b-2 border-gray-200">
                               <tr>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Date</th>
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Department</th>
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Task</th>
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Start</th>
@@ -1075,6 +1085,9 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                             <tbody className="divide-y divide-gray-200">
                               {employee.entries.map((entry: any) => (
                                 <tr key={entry.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-700 font-medium">
+                                    {new Date(entry.entry_date).toLocaleDateString()}
+                                  </td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-700">{entry.department.name}</td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium text-gray-900">{entry.task.name}</td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-gray-600">
