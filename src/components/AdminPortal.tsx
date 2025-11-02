@@ -780,7 +780,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center p-4 sm:p-6 text-black">
+      <div className="flex items-center justify-center p-4 sm:p-6 text-red">
         <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md">
           <div className="text-center mb-6 sm:mb-8">
             <Lock className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-blue-600 mb-4" />
