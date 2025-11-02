@@ -218,7 +218,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     const { data } = await supabase
       .from('time_entries')
       .insert({
-        employee_id: employee!.id,
+        employee_id: currentEmployee.id,
         department_id: selectedDepartment,
         task_id: selectedTask,
         start_time: startTime,
