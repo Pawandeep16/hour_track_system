@@ -50,6 +50,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<EmployeeWithEntries[]>([]);
   const [departmentSummaries, setDepartmentSummaries] = useState<DepartmentSummary[]>([]);
   const [grandTotalMinutes, setGrandTotalMinutes] = useState(0);
@@ -81,7 +83,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     } else {
       onLoginStateChange(false);
     }
-  }, [selectedDate, isAuthenticated, onLoginStateChange]);
+  }, [startDate, endDate, isAuthenticated, onLoginStateChange]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -174,14 +176,16 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           .from('time_entries')
           .select('*, task:tasks(*), department:departments(*), shift:shifts(*)')
           .eq('employee_id', employee.id)
-          .eq('entry_date', selectedDate)
+          .gte('entry_date', startDate)
+          .lte('entry_date', endDate)
           .order('start_time');
 
         const { data: breaks } = await supabase
           .from('break_entries')
           .select('*')
           .eq('employee_id', employee.id)
-          .eq('entry_date', selectedDate)
+          .gte('entry_date', startDate)
+          .lte('entry_date', endDate)
           .order('start_time');
 
         const totalMinutes = (entries || []).reduce(
@@ -649,6 +653,88 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   const generateExcelReport = () => {
     const workbook = XLSX.utils.book_new();
+    const data: any[] = [];
+
+    employees.forEach(employee => {
+      employee.entries.forEach(entry => {
+        const task = entry.task;
+        const startTime = new Date(entry.start_time);
+        const endTime = entry.end_time ? new Date(entry.end_time) : null;
+        const duration = entry.duration_minutes || 0;
+
+        data.push({
+          'Task': task.name,
+          'Associates': employee.name,
+          'Notes': task.name,
+          'Task Start': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          'Task End': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '0:00:00',
+          '': duration > 0 ? (duration / 60).toFixed(2) : '0.00',
+          'Total': ''
+        });
+      });
+    });
+
+    const taskGroups = new Map<string, any[]>();
+    data.forEach(row => {
+      const task = row['Task'];
+      if (!taskGroups.has(task)) {
+        taskGroups.set(task, []);
+      }
+      taskGroups.get(task)!.push(row);
+    });
+
+    const finalData: any[] = [];
+    let taskIndex = 1;
+    let grandTotal = 0;
+
+    taskGroups.forEach((rows, taskName) => {
+      const taskTotal = rows.reduce((sum, row) => sum + parseFloat(row[''] || 0), 0);
+      grandTotal += taskTotal;
+
+      rows.forEach((row, index) => {
+        finalData.push({
+          '': taskIndex.toString(),
+          'Task': index === 0 ? taskName : '',
+          'Associates': row['Associates'],
+          'Notes': row['Notes'],
+          'Task Start': row['Task Start'],
+          'Task End': row['Task End'],
+          '__empty': row[''],
+          'Total': index === 0 ? taskTotal.toFixed(2) : ''
+        });
+      });
+      taskIndex++;
+    });
+
+    finalData.push({
+      '': '',
+      'Task': '',
+      'Associates': '',
+      'Notes': '',
+      'Task Start': '',
+      'Task End': 'Total hours',
+      '__empty': '',
+      'Total': grandTotal.toFixed(2)
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(finalData);
+
+    worksheet['!cols'] = [
+      { wch: 5 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 }
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
+    XLSX.writeFile(workbook, `time_report_${startDate}_to_${endDate}.xlsx`);
+    return;
+
+    // Old code below (keeping as backup)
 
     const filteredDepartments = summaryDeptFilter === 'all'
       ? departmentSummaries
@@ -749,13 +835,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       currentRow++;
     });
 
-    const grandTotal = filteredDepartments.reduce((sum, dept) => sum + dept.departmentTotalMinutes, 0);
+    const oldGrandTotal = filteredDepartments.reduce((sum, dept) => sum + dept.departmentTotalMinutes, 0);
 
     detailedSummaryData.push({
       'Task Name': '',
       'Employee Count': '',
       'Employee Names': 'GRAND TOTAL:',
-      'Total Hours': formatDuration(grandTotal)
+      'Total Hours': formatDuration(oldGrandTotal)
     });
 
     cellStyles[`C${currentRow}`] = { font: { bold: true, sz: 13 } };
@@ -881,13 +967,20 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                   <input
                     type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="px-3 py-2 sm:px-4 rounded-lg text-gray-800 font-semibold border-2 border-white focus:outline-none text-sm sm:text-base"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="px-2 py-2 sm:px-3 rounded-lg text-gray-800 font-semibold border-2 border-white focus:outline-none text-xs sm:text-sm"
+                  />
+                  <span className="text-white font-bold">to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="px-2 py-2 sm:px-3 rounded-lg text-gray-800 font-semibold border-2 border-white focus:outline-none text-xs sm:text-sm"
                   />
                 </div>
                 <button
