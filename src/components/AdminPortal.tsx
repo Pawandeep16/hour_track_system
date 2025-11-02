@@ -790,7 +790,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
           <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-black mb-2">
                 Username
               </label>
               <input
