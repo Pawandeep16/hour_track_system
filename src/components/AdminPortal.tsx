@@ -653,10 +653,31 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   const generateExcelReport = () => {
     const workbook = XLSX.utils.book_new();
+
+    const filterLabel = summaryDeptFilter === 'all'
+      ? 'All Departments'
+      : departments.find(d => d.id === summaryDeptFilter)?.name || 'Unknown';
+
+    const employeeTypeLabel = employeeTypeFilter === 'all'
+      ? 'All Employees'
+      : employeeTypeFilter === 'regular'
+      ? 'Regular Employees Only'
+      : 'Temp Employees Only';
+
+    const filteredEmployees = employees.filter(emp => {
+      const matchesType = employeeTypeFilter === 'all' ||
+        (employeeTypeFilter === 'temp' && emp.is_temp) ||
+        (employeeTypeFilter === 'regular' && !emp.is_temp);
+      return matchesType;
+    });
+
     const data: any[] = [];
 
-    employees.forEach(employee => {
+    filteredEmployees.forEach(employee => {
       employee.entries.forEach(entry => {
+        const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
+        if (!matchesDept) return;
+
         const task = entry.task;
         const startTime = new Date(entry.start_time);
         const endTime = entry.end_time ? new Date(entry.end_time) : null;
@@ -667,9 +688,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           'Associates': employee.name,
           'Notes': task.name,
           'Task Start': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          'Task End': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '0:00:00',
-          '': duration > 0 ? (duration / 60).toFixed(2) : '0.00',
-          'Total': ''
+          'Task End': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00',
+          'Duration': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
         });
       });
     });
@@ -683,23 +703,72 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       taskGroups.get(task)!.push(row);
     });
 
-    const finalData: any[] = [];
+    const headerData: any[] = [];
+
+    headerData.push({
+      '#': 'Date Range:',
+      'Task': `${startDate} to ${endDate}`,
+      'Associates': '',
+      'Employee Count': '',
+      'Notes': '',
+      'Task Start': '',
+      'Task End': '',
+      'Total': ''
+    });
+
+    headerData.push({
+      '#': 'Department:',
+      'Task': filterLabel,
+      'Associates': '',
+      'Employee Count': '',
+      'Notes': '',
+      'Task Start': '',
+      'Task End': '',
+      'Total': ''
+    });
+
+    headerData.push({
+      '#': 'Employee Type:',
+      'Task': employeeTypeLabel,
+      'Associates': '',
+      'Employee Count': '',
+      'Notes': '',
+      'Task Start': '',
+      'Task End': '',
+      'Total': ''
+    });
+
+    headerData.push({
+      '#': '',
+      'Task': '',
+      'Associates': '',
+      'Employee Count': '',
+      'Notes': '',
+      'Task Start': '',
+      'Task End': '',
+      'Total': ''
+    });
+
+    const finalData: any[] = [...headerData];
     let taskIndex = 1;
     let grandTotal = 0;
 
     taskGroups.forEach((rows, taskName) => {
-      const taskTotal = rows.reduce((sum, row) => sum + parseFloat(row[''] || 0), 0);
+      const taskTotal = rows.reduce((sum, row) => sum + parseFloat(row['Duration'] || 0), 0);
       grandTotal += taskTotal;
+
+      const uniqueEmployees = new Set(rows.map(r => r['Associates']));
+      const employeeCount = uniqueEmployees.size;
 
       rows.forEach((row, index) => {
         finalData.push({
-          '': taskIndex.toString(),
+          '#': index === 0 ? taskIndex.toString() : '',
           'Task': index === 0 ? taskName : '',
           'Associates': row['Associates'],
+          'Employee Count': index === 0 ? employeeCount.toString() : '',
           'Notes': row['Notes'],
           'Task Start': row['Task Start'],
           'Task End': row['Task End'],
-          '__empty': row[''],
           'Total': index === 0 ? taskTotal.toFixed(2) : ''
         });
       });
@@ -707,24 +776,37 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     });
 
     finalData.push({
-      '': '',
+      '#': '',
       'Task': '',
       'Associates': '',
+      'Employee Count': '',
       'Notes': '',
       'Task Start': '',
       'Task End': 'Total hours',
-      '__empty': '',
       'Total': grandTotal.toFixed(2)
     });
 
     const worksheet = XLSX.utils.json_to_sheet(finalData);
 
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col <= 7; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+        if (!worksheet[cellRef]) continue;
+        worksheet[cellRef].s = {
+          font: { bold: true, sz: 12 },
+          fill: { fgColor: { rgb: 'FFD9E1F2' } }
+        };
+      }
+    }
+
     worksheet['!cols'] = [
       { wch: 5 },
       { wch: 20 },
-      { wch: 20 },
+      { wch: 25 },
+      { wch: 12 },
       { wch: 30 },
-      { wch: 10 },
       { wch: 10 },
       { wch: 10 },
       { wch: 10 }
@@ -732,168 +814,6 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
     XLSX.writeFile(workbook, `time_report_${startDate}_to_${endDate}.xlsx`);
-    return;
-
-    // Old code below (keeping as backup)
-
-    const filteredDepartments = summaryDeptFilter === 'all'
-      ? departmentSummaries
-      : departmentSummaries.filter(dept => dept.departmentId === summaryDeptFilter);
-
-    const departmentColors = [
-      'FFE6F2FF', 'FFD4EDDA', 'FFFCE8B2', 'FFDAEEF3',
-      'FFE8DAEF', 'FFFDEDC8', 'FFD4E6F1', 'FFFAD7E3'
-    ];
-
-    const detailedSummaryData: any[] = [];
-
-    const filterLabel = summaryDeptFilter === 'all'
-      ? 'All Departments'
-      : departments.find(d => d.id === summaryDeptFilter)?.name || 'Unknown';
-
-    const employeeTypeLabel = employeeTypeFilter === 'all'
-      ? 'All Employees'
-      : employeeTypeFilter === 'regular'
-      ? 'Regular Employees Only'
-      : 'Temp Employees Only';
-
-    detailedSummaryData.push({
-      'Task Name': 'REPORT FILTERS',
-      'Employee Count': '',
-      'Employee Names': '',
-      'Total Hours': ''
-    });
-
-    detailedSummaryData.push({
-      'Task Name': `Date: ${new Date(selectedDate).toLocaleDateString()}`,
-      'Employee Count': '',
-      'Employee Names': `Department Filter: ${filterLabel}`,
-      'Total Hours': `Employee Type: ${employeeTypeLabel}`
-    });
-
-    detailedSummaryData.push({
-      'Task Name': '',
-      'Employee Count': '',
-      'Employee Names': '',
-      'Total Hours': ''
-    });
-
-    let currentRow = 4;
-    const cellStyles: any = {};
-
-    filteredDepartments.forEach((dept, deptIndex) => {
-      const deptColor = departmentColors[deptIndex % departmentColors.length];
-
-      detailedSummaryData.push({
-        'Task Name': `DEPARTMENT: ${dept.departmentName.toUpperCase()}`,
-        'Employee Count': '',
-        'Employee Names': '',
-        'Total Hours': ''
-      });
-
-      const deptHeaderRow = currentRow;
-      cellStyles[`A${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
-      cellStyles[`B${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
-      cellStyles[`C${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
-      cellStyles[`D${deptHeaderRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { bold: true, sz: 12 } };
-      currentRow++;
-
-      dept.tasks.forEach(task => {
-        const employeeNames = task.employees.map(emp => emp.name).join(', ');
-
-        detailedSummaryData.push({
-          'Task Name': task.taskName,
-          'Employee Count': `${task.employeeCount} employee${task.employeeCount !== 1 ? 's' : ''}`,
-          'Employee Names': employeeNames,
-          'Total Hours': formatDuration(task.totalMinutes)
-        });
-
-        cellStyles[`A${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
-        cellStyles[`B${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
-        cellStyles[`C${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11 } };
-        cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: deptColor } }, font: { sz: 11, bold: true } };
-        currentRow++;
-      });
-
-      detailedSummaryData.push({
-        'Task Name': '',
-        'Employee Count': '',
-        'Employee Names': 'DEPARTMENT TOTAL:',
-        'Total Hours': formatDuration(dept.departmentTotalMinutes)
-      });
-
-      cellStyles[`C${currentRow}`] = { font: { bold: true, sz: 11 } };
-      cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: 'FFFFF200' } }, font: { bold: true, sz: 11 } };
-      currentRow++;
-
-      detailedSummaryData.push({
-        'Task Name': '',
-        'Employee Count': '',
-        'Employee Names': '',
-        'Total Hours': ''
-      });
-      currentRow++;
-    });
-
-    const oldGrandTotal = filteredDepartments.reduce((sum, dept) => sum + dept.departmentTotalMinutes, 0);
-
-    detailedSummaryData.push({
-      'Task Name': '',
-      'Employee Count': '',
-      'Employee Names': 'GRAND TOTAL:',
-      'Total Hours': formatDuration(oldGrandTotal)
-    });
-
-    cellStyles[`C${currentRow}`] = { font: { bold: true, sz: 13 } };
-    cellStyles[`D${currentRow}`] = { fill: { fgColor: { rgb: 'FF00B050' } }, font: { bold: true, sz: 13, color: { rgb: 'FFFFFFFF' } } };
-
-    const employeeData = employees.map(emp => ({
-      'Employee Name': emp.name,
-      'Employee ID': emp.employee_code,
-      'Type': emp.is_temp ? 'Temp' : 'Regular',
-      'Shift': emp.shift?.name || 'N/A',
-      'Total Hours': formatDuration(emp.totalMinutes),
-      'Break Time': formatDuration(emp.totalBreakMinutes),
-      'Date': new Date(selectedDate).toLocaleDateString()
-    }));
-
-    const detailedData: any[] = [];
-    employees.forEach(emp => {
-      emp.entries.forEach((entry: any) => {
-        detailedData.push({
-          'Employee Name': emp.name,
-          'Employee ID': emp.employee_code,
-          'Type': emp.is_temp ? 'Temp' : 'Regular',
-          'Shift': emp.shift?.name || 'N/A',
-          'Department': entry.department.name,
-          'Task': entry.task.name,
-          'Start Time': new Date(entry.start_time).toLocaleTimeString(),
-          'End Time': entry.end_time ? new Date(entry.end_time).toLocaleTimeString() : 'In Progress',
-          'Duration': formatDuration(entry.duration_minutes || 0),
-          'Date': new Date(selectedDate).toLocaleDateString()
-        });
-      });
-    });
-
-    const ws1 = XLSX.utils.json_to_sheet(detailedSummaryData);
-    const ws2 = XLSX.utils.json_to_sheet(employeeData);
-    const ws3 = XLSX.utils.json_to_sheet(detailedData);
-
-    Object.keys(cellStyles).forEach(cell => {
-      if (ws1[cell]) {
-        ws1[cell].s = cellStyles[cell];
-      }
-    });
-
-    ws1['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 35 }, { wch: 15 }];
-    ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
-
-    XLSX.utils.book_append_sheet(workbook, ws1, 'Department Summary');
-    XLSX.utils.book_append_sheet(workbook, ws2, 'Employee Overview');
-    XLSX.utils.book_append_sheet(workbook, ws3, 'Detailed Report');
-
-    XLSX.writeFile(workbook, `time-tracking-report-${selectedDate}.xlsx`);
   };
 
   if (!isAuthenticated) {
