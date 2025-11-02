@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, Department, Task, Employee, TimeEntry, BreakEntry } from '../lib/supabase';
+import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
 import {
   BarChart3,
   Users,
@@ -19,10 +19,11 @@ import Papa from "papaparse";
 import * as XLSX from 'xlsx';
 
 interface EmployeeWithEntries extends Employee {
-  entries: Array<TimeEntry & { task: Task; department: Department }>;
+  entries: Array<TimeEntry & { task: Task; department: Department; shift?: Shift }>;
   breaks: BreakEntry[];
   totalMinutes: number;
   totalBreakMinutes: number;
+  shift?: Shift | null;
 }
 
 interface DepartmentSummary {
@@ -51,10 +52,15 @@ export default function AdminPortal() {
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskDept, setNewTaskDept] = useState('');
   const [newDeptName, setNewDeptName] = useState('');
-  const [activeTab, setActiveTab] = useState<'individual' | 'summary' | 'manage' | 'employees'>('individual');
+  const [activeTab, setActiveTab] = useState<'individual' | 'summary' | 'manage' | 'employees' | 'shifts'>('individual');
   const [summaryDeptFilter, setSummaryDeptFilter] = useState<string>('all');
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [newShiftName, setNewShiftName] = useState('');
+  const [newShiftStart, setNewShiftStart] = useState('06:00');
+  const [newShiftEnd, setNewShiftEnd] = useState('14:00');
+  const [newShiftColor, setNewShiftColor] = useState('#3b82f6');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -90,6 +96,7 @@ export default function AdminPortal() {
     await Promise.all([
       loadDepartments(),
       loadTasks(),
+      loadShifts(),
       loadEmployeesWithEntries(),
       generateDepartmentSummaries(),
       loadAllEmployees()
@@ -123,6 +130,14 @@ export default function AdminPortal() {
     if (data) setTasks(data as any);
   };
 
+  const loadShifts = async () => {
+    const { data } = await supabase
+      .from('shifts')
+      .select('*')
+      .order('start_time');
+    if (data) setShifts(data);
+  };
+
   const loadEmployeesWithEntries = async () => {
     const { data: allEmployees } = await supabase
       .from('employees')
@@ -135,7 +150,7 @@ export default function AdminPortal() {
       allEmployees.map(async (employee) => {
         const { data: entries } = await supabase
           .from('time_entries')
-          .select('*, task:tasks(*), department:departments(*)')
+          .select('*, task:tasks(*), department:departments(*), shift:shifts(*)')
           .eq('employee_id', employee.id)
           .eq('entry_date', selectedDate)
           .order('start_time');
@@ -157,12 +172,16 @@ export default function AdminPortal() {
           0
         );
 
+        const firstEntry = entries && entries.length > 0 ? entries[0] : null;
+        const employeeShift = firstEntry ? (firstEntry as any).shift : null;
+
         return {
           ...employee,
           entries: entries || [],
           breaks: breaks || [],
           totalMinutes,
-          totalBreakMinutes
+          totalBreakMinutes,
+          shift: employeeShift
         } as EmployeeWithEntries;
       })
     );
@@ -480,6 +499,99 @@ export default function AdminPortal() {
     return filtered?.departmentTotalMinutes || 0;
   };
 
+  const addShift = async () => {
+    if (!newShiftName.trim() || !newShiftStart || !newShiftEnd) return;
+
+    await supabase.from('shifts').insert({
+      name: newShiftName.trim(),
+      start_time: newShiftStart + ':00',
+      end_time: newShiftEnd + ':00',
+      color: newShiftColor
+    });
+
+    setNewShiftName('');
+    setNewShiftStart('06:00');
+    setNewShiftEnd('14:00');
+    setNewShiftColor('#3b82f6');
+    loadShifts();
+  };
+
+  const deleteShift = async (shiftId: string) => {
+    if (!confirm('Are you sure you want to delete this shift?')) return;
+    await supabase.from('shifts').delete().eq('id', shiftId);
+    loadShifts();
+  };
+
+  const generateExcelReport = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const employeeData = employees.map(emp => ({
+      'Employee Name': emp.name,
+      'Employee ID': emp.employee_code,
+      'Shift': emp.shift?.name || 'N/A',
+      'Total Hours': formatDuration(emp.totalMinutes),
+      'Break Time': formatDuration(emp.totalBreakMinutes),
+      'Date': new Date(selectedDate).toLocaleDateString()
+    }));
+
+    const detailedData: any[] = [];
+    employees.forEach(emp => {
+      emp.entries.forEach((entry: any) => {
+        detailedData.push({
+          'Employee Name': emp.name,
+          'Employee ID': emp.employee_code,
+          'Shift': emp.shift?.name || 'N/A',
+          'Department': entry.department.name,
+          'Task': entry.task.name,
+          'Start Time': new Date(entry.start_time).toLocaleTimeString(),
+          'End Time': entry.end_time ? new Date(entry.end_time).toLocaleTimeString() : 'In Progress',
+          'Duration': formatDuration(entry.duration_minutes || 0),
+          'Date': new Date(selectedDate).toLocaleDateString()
+        });
+      });
+    });
+
+    const summaryData: any[] = [];
+    departmentSummaries.forEach(dept => {
+      dept.tasks.forEach(task => {
+        task.employees.forEach(emp => {
+          summaryData.push({
+            'Department': dept.departmentName,
+            'Task': task.taskName,
+            'Employee': emp.name,
+            'Duration': formatDuration(emp.minutes),
+            'Date': new Date(selectedDate).toLocaleDateString()
+          });
+        });
+      });
+    });
+
+    const summarySheet: any[] = [
+      { 'Report Summary': 'Time Tracking Report', 'Value': '' },
+      { 'Report Summary': 'Date', 'Value': new Date(selectedDate).toLocaleDateString() },
+      { 'Report Summary': 'Total Employees', 'Value': employees.length },
+      { 'Report Summary': 'Total Hours', 'Value': formatDuration(grandTotalMinutes) },
+      { 'Report Summary': '', 'Value': '' }
+    ];
+
+    const ws1 = XLSX.utils.json_to_sheet(summarySheet);
+    const ws2 = XLSX.utils.json_to_sheet(employeeData);
+    const ws3 = XLSX.utils.json_to_sheet(detailedData);
+    const ws4 = XLSX.utils.json_to_sheet(summaryData);
+
+    ws1['!cols'] = [{ wch: 20 }, { wch: 30 }];
+    ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
+    ws4['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 }];
+
+    XLSX.utils.book_append_sheet(workbook, ws1, 'Summary');
+    XLSX.utils.book_append_sheet(workbook, ws2, 'Employee Overview');
+    XLSX.utils.book_append_sheet(workbook, ws3, 'Detailed Report');
+    XLSX.utils.book_append_sheet(workbook, ws4, 'Department Summary');
+
+    XLSX.writeFile(workbook, `time-tracking-report-${selectedDate}.xlsx`);
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 sm:p-6">
@@ -566,8 +678,15 @@ export default function AdminPortal() {
                   disabled={employees.length === 0}
                 >
                   <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Download PDF</span>
-                  <span className="sm:hidden">PDF</span>
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+                <button
+                  onClick={generateExcelReport}
+                  className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors font-semibold text-sm sm:text-base"
+                  disabled={employees.length === 0}
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Excel</span>
                 </button>
                 <button
                   onClick={handleLogout}
@@ -626,6 +745,17 @@ export default function AdminPortal() {
                 <Users className="w-4 h-4 inline mr-2" />
                 Employees
               </button>
+              <button
+                onClick={() => setActiveTab('shifts')}
+                className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base whitespace-nowrap ${
+                  activeTab === 'shifts'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Clock className="w-4 h-4 inline mr-2" />
+                Shifts
+              </button>
             </div>
           </div>
 
@@ -648,7 +778,17 @@ export default function AdminPortal() {
                       <div key={employee.id} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 sm:p-6 border-2 border-blue-200">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                           <div>
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-800">{employee.name}</h3>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-lg sm:text-xl font-bold text-gray-800">{employee.name}</h3>
+                              {employee.shift && (
+                                <span
+                                  className="px-3 py-1 rounded-full text-xs font-bold text-white"
+                                  style={{ backgroundColor: employee.shift.color }}
+                                >
+                                  {employee.shift.name}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-600 mt-1 font-mono">
                               Employee ID: {employee.employee_code}
                             </p>
@@ -988,6 +1128,97 @@ export default function AdminPortal() {
                             </div>
                             <button
                               onClick={() => deleteEmployee(employee.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'shifts' && (
+              <div className="space-y-6 sm:space-y-8">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                    Manage Shifts
+                  </h2>
+
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Add New Shift</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                      <input
+                        type="text"
+                        value={newShiftName}
+                        onChange={(e) => setNewShiftName(e.target.value)}
+                        placeholder="Shift name (e.g., Day Shift)"
+                        className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                      <input
+                        type="time"
+                        value={newShiftStart}
+                        onChange={(e) => setNewShiftStart(e.target.value)}
+                        className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                      <input
+                        type="time"
+                        value={newShiftEnd}
+                        onChange={(e) => setNewShiftEnd(e.target.value)}
+                        className="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={newShiftColor}
+                        onChange={(e) => setNewShiftColor(e.target.value)}
+                        className="h-12 px-2 py-1 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none cursor-pointer"
+                      />
+                      <button
+                        onClick={addShift}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors whitespace-nowrap"
+                      >
+                        Add Shift
+                      </button>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-4">
+                      Define shift timings to automatically assign shifts based on when employees start their first task.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
+                    Existing Shifts ({shifts.length} total)
+                  </h3>
+
+                  {shifts.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Clock className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 opacity-50" />
+                      <p className="text-base sm:text-lg">No shifts configured yet</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:gap-4">
+                      {shifts.map((shift) => (
+                        <div key={shift.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-blue-300 transition-colors">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div
+                                className="w-12 h-12 rounded-lg"
+                                style={{ backgroundColor: shift.color }}
+                              ></div>
+                              <div className="flex-1">
+                                <h4 className="text-base sm:text-lg font-bold text-gray-800">{shift.name}</h4>
+                                <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                                  {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deleteShift(shift.id)}
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                             >
                               <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />

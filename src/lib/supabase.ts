@@ -47,3 +47,12 @@ export interface BreakEntry {
   entry_date: string;
   created_at: string;
 }
+
+export interface Shift {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  color: string;
+  created_at: string;
+}

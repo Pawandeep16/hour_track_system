@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase, Department, Task, Employee, TimeEntry, BreakEntry } from '../lib/supabase';
+import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
 import { Clock, Play, StopCircle, User, LogOut, Coffee } from 'lucide-react';
+import { detectShift } from '../lib/shiftUtils';
 
 const PAID_BREAK_LIMIT = 30;
 const UNPAID_BREAK_LIMIT = 3;
@@ -18,9 +19,12 @@ export default function EmployeeTracking() {
   const [todayBreaks, setTodayBreaks] = useState<BreakEntry[]>([]);
   const [isStarted, setIsStarted] = useState(false);
   const [nameError, setNameError] = useState('');
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [currentShift, setCurrentShift] = useState<Shift | null>(null);
 
   useEffect(() => {
     loadDepartments();
+    loadShifts();
     checkStoredEmployee();
   }, []);
 
@@ -67,6 +71,14 @@ export default function EmployeeTracking() {
       .select('*')
       .order('name');
     if (data) setDepartments(data);
+  };
+
+  const loadShifts = async () => {
+    const { data } = await supabase
+      .from('shifts')
+      .select('*')
+      .order('start_time');
+    if (data) setShifts(data);
   };
 
   const loadTasks = async (departmentId: string) => {
@@ -187,13 +199,21 @@ export default function EmployeeTracking() {
       await handleEndBreak();
     }
 
+    const startTime = new Date().toISOString();
+    const detectedShift = detectShift(startTime, shifts);
+
+    if (detectedShift && !currentShift) {
+      setCurrentShift(detectedShift);
+    }
+
     const { data } = await supabase
       .from('time_entries')
       .insert({
         employee_id: employee!.id,
         department_id: selectedDepartment,
         task_id: selectedTask,
-        start_time: new Date().toISOString(),
+        start_time: startTime,
+        shift_id: detectedShift?.id || null,
         entry_date: new Date().toISOString().split('T')[0]
       })
       .select()
@@ -294,6 +314,7 @@ export default function EmployeeTracking() {
     setTodayBreaks([]);
     setSelectedDepartment('');
     setSelectedTask('');
+    setCurrentShift(null);
   };
 
   const formatDuration = (minutes: number | null) => {
@@ -404,10 +425,20 @@ export default function EmployeeTracking() {
             <div className="space-y-4 sm:space-y-6">
               <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 sm:p-6 rounded-xl border-2 border-blue-200">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <p className="text-base sm:text-lg font-semibold text-gray-800">
-                      Welcome, <span className="text-blue-700">{currentEmployee.name}</span>
-                    </p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-base sm:text-lg font-semibold text-gray-800">
+                        Welcome, <span className="text-blue-700">{currentEmployee.name}</span>
+                      </p>
+                      {currentShift && (
+                        <span
+                          className="px-3 py-1 rounded-full text-xs font-bold text-white"
+                          style={{ backgroundColor: currentShift.color }}
+                        >
+                          {currentShift.name}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-1 font-mono">
                       ID: {currentEmployee.employee_code}
                     </p>
