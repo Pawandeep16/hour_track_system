@@ -719,57 +719,26 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       taskGroups.get(task)!.push(row);
     });
 
-    const headerData: any[] = [];
+    const filterData: any[] = [];
 
-    headerData.push({
-      '#': 'Date Range:',
-      'Date': `${startDate} to ${endDate}`,
-      'Task': '',
-      'Associates': '',
-      'Employee Count': '',
-      'Notes': '',
-      'Task Start': '',
-      'Task End': '',
-      'Total': ''
+    filterData.push({
+      'A': 'Date Range:',
+      'B': `${startDate} to ${endDate}`
     });
 
-    headerData.push({
-      '#': 'Department:',
-      'Date': filterLabel,
-      'Task': '',
-      'Associates': '',
-      'Employee Count': '',
-      'Notes': '',
-      'Task Start': '',
-      'Task End': '',
-      'Total': ''
+    filterData.push({
+      'A': 'Department:',
+      'B': filterLabel
     });
 
-    headerData.push({
-      '#': 'Employee Type:',
-      'Date': employeeTypeLabel,
-      'Task': '',
-      'Associates': '',
-      'Employee Count': '',
-      'Notes': '',
-      'Task Start': '',
-      'Task End': '',
-      'Total': ''
+    filterData.push({
+      'A': 'Employee Type:',
+      'B': employeeTypeLabel
     });
 
-    headerData.push({
-      '#': '',
-      'Date': '',
-      'Task': '',
-      'Associates': '',
-      'Employee Count': '',
-      'Notes': '',
-      'Task Start': '',
-      'Task End': '',
-      'Total': ''
-    });
+    filterData.push({});
 
-    const finalData: any[] = [...headerData];
+    const finalData: any[] = [];
     let taskIndex = 1;
     let grandTotal = 0;
 
@@ -808,17 +777,17 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       'Total': grandTotal.toFixed(2)
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(finalData);
+    const worksheet = XLSX.utils.json_to_sheet(filterData, { skipHeader: true });
+    XLSX.utils.sheet_add_json(worksheet, finalData, { origin: -1 });
 
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
     for (let row = 0; row < 3; row++) {
-      for (let col = 0; col <= 8; col++) {
+      for (let col = 0; col <= 1; col++) {
         const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
         if (!worksheet[cellRef]) continue;
         worksheet[cellRef].s = {
-          font: { bold: true, sz: 12 },
-          fill: { fgColor: { rgb: 'FFD9E1F2' } }
+          font: { bold: true, sz: 11 }
         };
       }
     }
