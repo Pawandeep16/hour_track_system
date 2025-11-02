@@ -38,7 +38,11 @@ interface DepartmentSummary {
   departmentTotalMinutes: number;
 }
 
-export default function AdminPortal() {
+interface AdminPortalProps {
+  onLoginStateChange: (isLoggedIn: boolean) => void;
+}
+
+export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -67,8 +71,11 @@ export default function AdminPortal() {
   useEffect(() => {
     if (isAuthenticated) {
       loadData();
+      onLoginStateChange(true);
+    } else {
+      onLoginStateChange(false);
     }
-  }, [selectedDate, isAuthenticated]);
+  }, [selectedDate, isAuthenticated, onLoginStateChange]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -98,6 +105,7 @@ export default function AdminPortal() {
     setIsAuthenticated(false);
     setUsername('');
     setPassword('');
+    onLoginStateChange(false);
   };
 
   const loadData = async () => {
@@ -423,6 +431,62 @@ export default function AdminPortal() {
           await supabase.from('employees').insert(employees);
           loadAllEmployees();
           alert(`Successfully imported ${employees.length} employees`);
+        }
+      };
+      reader.readAsBinaryString(file);
+    } else {
+      alert('Please upload a CSV or XLSX file');
+    }
+
+    event.target.value = '';
+  };
+
+  const handleTempFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+    if (fileExtension === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        complete: async (results) => {
+          const employees = results.data
+            .filter((row: any) => row.name && row.name.trim())
+            .map((row: any) => ({
+              name: row.name.trim(),
+              employee_code: generateEmployeeCode(row.name.trim(), true),
+              is_temp: true
+            }));
+
+          if (employees.length > 0) {
+            await supabase.from('employees').insert(employees);
+            loadAllEmployees();
+            alert(`Successfully imported ${employees.length} temp employees`);
+          }
+        }
+      });
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        const employees = jsonData
+          .filter((row: any) => row.name && row.name.trim())
+          .map((row: any) => ({
+            name: row.name.trim(),
+            employee_code: generateEmployeeCode(row.name.trim(), true),
+            is_temp: true
+          }));
+
+        if (employees.length > 0) {
+          await supabase.from('employees').insert(employees);
+          loadAllEmployees();
+          alert(`Successfully imported ${employees.length} temp employees`);
         }
       };
       reader.readAsBinaryString(file);
@@ -1103,7 +1167,7 @@ export default function AdminPortal() {
                   </h2>
 
                   <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Import/Export Employees</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Import/Export Regular Employees</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                       <button
                         onClick={downloadEmployeeTemplate}
@@ -1121,7 +1185,7 @@ export default function AdminPortal() {
                       </button>
                       <label className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base">
                         <Plus className="w-4 h-4" />
-                        Import CSV/XLSX
+                        Import Regular
                         <input
                           type="file"
                           accept=".csv,.xlsx,.xls"
@@ -1131,7 +1195,40 @@ export default function AdminPortal() {
                       </label>
                     </div>
                     <p className="text-xs sm:text-sm text-gray-600 mt-4">
-                      CSV/XLSX file should have a column named "name" with employee full names. Employee IDs will be generated automatically.
+                      CSV/XLSX file should have a column named "name" with employee full names. Regular employee IDs will be generated automatically (EMP_name_1234).
+                    </p>
+                  </div>
+
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Import/Export Temp Employees</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                      <button
+                        onClick={downloadEmployeeTemplate}
+                        className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Template
+                      </button>
+                      <button
+                        onClick={downloadEmployeeCSV}
+                        className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                      >
+                        <Download className="w-4 h-4" />
+                        Export List
+                      </button>
+                      <label className="px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base">
+                        <Plus className="w-4 h-4" />
+                        Import Temp
+                        <input
+                          type="file"
+                          accept=".csv,.xlsx,.xls"
+                          onChange={handleTempFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-4">
+                      CSV/XLSX file should have a column named "name" with employee full names. Temp employee IDs will be generated automatically (TEMP_name).
                     </p>
                   </div>
 

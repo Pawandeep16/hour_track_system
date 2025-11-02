@@ -6,7 +6,11 @@ import { detectShift } from '../lib/shiftUtils';
 const PAID_BREAK_LIMIT = 15;
 const UNPAID_BREAK_LIMIT = 30;
 
-export default function EmployeeTracking() {
+interface EmployeeTrackingProps {
+  onLoginStateChange: (isLoggedIn: boolean) => void;
+}
+
+export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackingProps) {
   const [employeeName, setEmployeeName] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedTask, setSelectedTask] = useState('');
@@ -40,8 +44,11 @@ export default function EmployeeTracking() {
       loadTodayBreaks();
       checkActiveEntry();
       checkActiveBreak();
+      onLoginStateChange(true);
+    } else {
+      onLoginStateChange(false);
     }
-  }, [currentEmployee]);
+  }, [currentEmployee, onLoginStateChange]);
 
   const checkStoredEmployee = () => {
     const storedEmployeeId = localStorage.getItem('employee_id');
@@ -315,6 +322,7 @@ export default function EmployeeTracking() {
     setSelectedDepartment('');
     setSelectedTask('');
     setCurrentShift(null);
+    onLoginStateChange(false);
   };
 
   const formatDuration = (minutes: number | null) => {
@@ -436,6 +444,11 @@ export default function EmployeeTracking() {
                           style={{ backgroundColor: currentShift.color }}
                         >
                           {currentShift.name}
+                        </span>
+                      )}
+                      {currentEmployee.is_temp && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                          TEMP
                         </span>
                       )}
                     </div>
