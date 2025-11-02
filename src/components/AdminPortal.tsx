@@ -56,6 +56,8 @@ export default function AdminPortal() {
   const [summaryDeptFilter, setSummaryDeptFilter] = useState<string>('all');
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [newTempEmployeeName, setNewTempEmployeeName] = useState('');
+  const [employeeTypeFilter, setEmployeeTypeFilter] = useState<'all' | 'regular' | 'temp'>('all');
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [newShiftName, setNewShiftName] = useState('');
   const [newShiftStart, setNewShiftStart] = useState('06:00');
@@ -67,6 +69,12 @@ export default function AdminPortal() {
       loadData();
     }
   }, [selectedDate, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      generateDepartmentSummaries();
+    }
+  }, [employeeTypeFilter]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +210,9 @@ export default function AdminPortal() {
     let grandTotal = 0;
 
     entries.forEach((entry: any) => {
+      if (employeeTypeFilter === 'regular' && entry.employee.is_temp) return;
+      if (employeeTypeFilter === 'temp' && !entry.employee.is_temp) return;
+
       const deptId = entry.department.id;
       const deptName = entry.department.name;
 
@@ -292,8 +303,11 @@ export default function AdminPortal() {
     return `${hours}h ${mins}m`;
   };
 
-  const generateEmployeeCode = (name: string) => {
+  const generateEmployeeCode = (name: string, isTemp: boolean = false) => {
     const namePart = name.toLowerCase().replace(/\s+/g, '_');
+    if (isTemp) {
+      return `TEMP_${namePart}`;
+    }
     const randomPart = Math.floor(1000 + Math.random() * 9000);
     return `EMP_${namePart}_${randomPart}`;
   };
@@ -301,13 +315,26 @@ export default function AdminPortal() {
   const addEmployee = async () => {
     if (!newEmployeeName.trim()) return;
 
-    const employeeCode = generateEmployeeCode(newEmployeeName.trim());
+    const employeeCode = generateEmployeeCode(newEmployeeName.trim(), false);
 
     await supabase
       .from('employees')
-      .insert({ name: newEmployeeName.trim(), employee_code: employeeCode });
+      .insert({ name: newEmployeeName.trim(), employee_code: employeeCode, is_temp: false });
 
     setNewEmployeeName('');
+    loadAllEmployees();
+  };
+
+  const addTempEmployee = async () => {
+    if (!newTempEmployeeName.trim()) return;
+
+    const employeeCode = generateEmployeeCode(newTempEmployeeName.trim(), true);
+
+    await supabase
+      .from('employees')
+      .insert({ name: newTempEmployeeName.trim(), employee_code: employeeCode, is_temp: true });
+
+    setNewTempEmployeeName('');
     loadAllEmployees();
   };
 
@@ -364,7 +391,8 @@ export default function AdminPortal() {
             .filter((row: any) => row.name && row.name.trim())
             .map((row: any) => ({
               name: row.name.trim(),
-              employee_code: generateEmployeeCode(row.name.trim())
+              employee_code: generateEmployeeCode(row.name.trim(), false),
+              is_temp: false
             }));
 
           if (employees.length > 0) {
@@ -387,7 +415,8 @@ export default function AdminPortal() {
           .filter((row: any) => row.name && row.name.trim())
           .map((row: any) => ({
             name: row.name.trim(),
-            employee_code: generateEmployeeCode(row.name.trim())
+            employee_code: generateEmployeeCode(row.name.trim(), false),
+            is_temp: false
           }));
 
         if (employees.length > 0) {
@@ -528,6 +557,7 @@ export default function AdminPortal() {
     const employeeData = employees.map(emp => ({
       'Employee Name': emp.name,
       'Employee ID': emp.employee_code,
+      'Type': emp.is_temp ? 'Temp' : 'Regular',
       'Shift': emp.shift?.name || 'N/A',
       'Total Hours': formatDuration(emp.totalMinutes),
       'Break Time': formatDuration(emp.totalBreakMinutes),
@@ -540,6 +570,7 @@ export default function AdminPortal() {
         detailedData.push({
           'Employee Name': emp.name,
           'Employee ID': emp.employee_code,
+          'Type': emp.is_temp ? 'Temp' : 'Regular',
           'Shift': emp.shift?.name || 'N/A',
           'Department': entry.department.name,
           'Task': entry.task.name,
@@ -580,8 +611,8 @@ export default function AdminPortal() {
     const ws4 = XLSX.utils.json_to_sheet(summaryData);
 
     ws1['!cols'] = [{ wch: 20 }, { wch: 30 }];
-    ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
+    ws2['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+    ws3['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }];
     ws4['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 12 }];
 
     XLSX.utils.book_append_sheet(workbook, ws1, 'Summary');
@@ -788,6 +819,11 @@ export default function AdminPortal() {
                                   {employee.shift.name}
                                 </span>
                               )}
+                              {employee.is_temp && (
+                                <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                  TEMP
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-600 mt-1 font-mono">
                               Employee ID: {employee.employee_code}
@@ -851,18 +887,32 @@ export default function AdminPortal() {
                     Department Summary
                   </h2>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filter:</label>
-                    <select
-                      value={summaryDeptFilter}
-                      onChange={(e) => setSummaryDeptFilter(e.target.value)}
-                      className="flex-1 sm:flex-initial px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
-                    >
-                      <option value="all">All Departments</option>
-                      {departments.map(dept => (
-                        <option key={dept.id} value={dept.id}>{dept.name}</option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Department:</label>
+                      <select
+                        value={summaryDeptFilter}
+                        onChange={(e) => setSummaryDeptFilter(e.target.value)}
+                        className="flex-1 sm:flex-initial px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      >
+                        <option value="all">All Departments</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id}>{dept.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Employee Type:</label>
+                      <select
+                        value={employeeTypeFilter}
+                        onChange={(e) => setEmployeeTypeFilter(e.target.value as 'all' | 'regular' | 'temp')}
+                        className="flex-1 sm:flex-initial px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                      >
+                        <option value="all">All Employees</option>
+                        <option value="regular">Regular Only</option>
+                        <option value="temp">Temp Only</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -1086,7 +1136,7 @@ export default function AdminPortal() {
                   </div>
 
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Add Individual Employee</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Add Regular Employee</h3>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <input
                         type="text"
@@ -1099,9 +1149,34 @@ export default function AdminPortal() {
                         onClick={addEmployee}
                         className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors whitespace-nowrap"
                       >
-                        Add Employee
+                        Add Regular
                       </button>
                     </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Regular employees get IDs like: EMP_john_doe_1234
+                    </p>
+                  </div>
+
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Add Temporary Employee</h3>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input
+                        type="text"
+                        value={newTempEmployeeName}
+                        onChange={(e) => setNewTempEmployeeName(e.target.value)}
+                        placeholder="Temp employee full name"
+                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                      />
+                      <button
+                        onClick={addTempEmployee}
+                        className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold transition-colors whitespace-nowrap"
+                      >
+                        Add Temp
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Temp employees get IDs like: TEMP_john_doe
+                    </p>
                   </div>
                 </div>
 
@@ -1121,7 +1196,14 @@ export default function AdminPortal() {
                         <div key={employee.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-blue-300 transition-colors">
                           <div className="flex justify-between items-center gap-3">
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-base sm:text-lg font-bold text-gray-800 truncate">{employee.name}</h4>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-base sm:text-lg font-bold text-gray-800 truncate">{employee.name}</h4>
+                                {employee.is_temp && (
+                                  <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                    TEMP
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs sm:text-sm text-gray-600 font-mono mt-1 truncate">
                                 ID: {employee.employee_code}
                               </p>

@@ -22,6 +22,7 @@ export interface Employee {
   id: string;
   name: string;
   employee_code: string;
+  is_temp: boolean;
   created_at: string;
 }
 
