@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
 import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
-import { getLocalDate, getLocalDateTime } from '../lib/dateUtils';
+import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib/dateUtils';
 import PinModal from './PinModal';
 
 const PAID_BREAK_LIMIT = 15;
@@ -302,14 +302,13 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const handleEnd = async () => {
     if (!activeEntry) return;
 
-    const endTime = new Date();
-    const startTime = new Date(activeEntry.start_time);
-    const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+    const endTimeStr = getLocalDateTime();
+    const durationMinutes = calculateDurationMinutes(activeEntry.start_time, endTimeStr);
 
     await supabase
       .from('time_entries')
       .update({
-        end_time: getLocalDateTime(),
+        end_time: endTimeStr,
         duration_minutes: durationMinutes
       })
       .eq('id', activeEntry.id);
@@ -351,9 +350,8 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const handleEndBreak = async () => {
     if (!activeBreak) return;
 
-    const endTime = new Date();
-    const startTime = new Date(activeBreak.start_time);
-    const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+    const endTimeStr = getLocalDateTime();
+    const durationMinutes = calculateDurationMinutes(activeBreak.start_time, endTimeStr);
 
     const breakLimit = activeBreak.break_type === 'paid' ? PAID_BREAK_LIMIT : UNPAID_BREAK_LIMIT;
 
@@ -367,7 +365,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     await supabase
       .from('break_entries')
       .update({
-        end_time: getLocalDateTime(),
+        end_time: endTimeStr,
         duration_minutes: durationMinutes
       })
       .eq('id', activeBreak.id);

@@ -25,3 +25,15 @@ export const formatLocalDate = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+export const parseLocalDateTime = (dateTimeString: string): Date => {
+  return new Date(dateTimeString);
+};
+
+export const calculateDurationMinutes = (startTime: string, endTime?: string | null): number => {
+  const start = parseLocalDateTime(startTime);
+  const end = endTime ? parseLocalDateTime(endTime) : new Date();
+
+  const durationMs = end.getTime() - start.getTime();
+  return Math.round(durationMs / 60000);
+};
