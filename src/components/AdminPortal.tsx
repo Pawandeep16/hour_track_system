@@ -16,6 +16,7 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PinModal from './PinModal';
+import { getLocalDate, getLocalDateTime } from '../lib/dateUtils';
 
 import Papa from "papaparse";
 import * as XLSX from 'xlsx';
@@ -49,9 +50,9 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDate());
+  const [startDate, setStartDate] = useState(getLocalDate());
+  const [endDate, setEndDate] = useState(getLocalDate());
   const [employees, setEmployees] = useState<EmployeeWithEntries[]>([]);
   const [departmentSummaries, setDepartmentSummaries] = useState<DepartmentSummary[]>([]);
   const [grandTotalMinutes, setGrandTotalMinutes] = useState(0);
@@ -371,7 +372,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       .from('employees')
       .update({
         security_pin: newPin,
-        pin_set_at: new Date().toISOString()
+        pin_set_at: getLocalDateTime()
       })
       .eq('id', selectedEmployeeForPinReset.id);
 

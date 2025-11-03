@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
 import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
+import { getLocalDate, getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
 
 const PAID_BREAK_LIMIT = 15;
@@ -109,7 +110,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const loadTodayEntries = async () => {
     if (!currentEmployee) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDate();
     const { data } = await supabase
       .from('time_entries')
       .select('*, task:tasks(*)')
@@ -123,7 +124,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const loadTodayBreaks = async () => {
     if (!currentEmployee) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDate();
     const { data } = await supabase
       .from('break_entries')
       .select('*')
@@ -208,12 +209,12 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .from('employees')
       .update({
         security_pin: pin,
-        pin_set_at: new Date().toISOString()
+        pin_set_at: getLocalDateTime()
       })
       .eq('id', tempEmployee.id);
 
     if (!error) {
-      setCurrentEmployee({ ...tempEmployee, security_pin: pin, pin_set_at: new Date().toISOString() });
+      setCurrentEmployee({ ...tempEmployee, security_pin: pin, pin_set_at: getLocalDateTime() });
       localStorage.setItem('employee_id', tempEmployee.id);
       setShowPinSetup(false);
       setShowNameEntry(false);
@@ -242,12 +243,12 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .from('employees')
       .update({
         security_pin: newPin,
-        pin_set_at: new Date().toISOString()
+        pin_set_at: getLocalDateTime()
       })
       .eq('id', currentEmployee.id);
 
     if (!error) {
-      setCurrentEmployee({ ...currentEmployee, security_pin: newPin, pin_set_at: new Date().toISOString() });
+      setCurrentEmployee({ ...currentEmployee, security_pin: newPin, pin_set_at: getLocalDateTime() });
       setShowResetPin(false);
       alert('PIN reset successfully!');
     } else {
@@ -271,7 +272,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       await handleEndBreak();
     }
 
-    const startTime = new Date().toISOString();
+    const startTime = getLocalDateTime();
     const detectedShift = detectShift(startTime, shifts);
 
     if (detectedShift && !currentShift) {
@@ -286,7 +287,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         task_id: selectedTask,
         start_time: startTime,
         shift_id: detectedShift?.id || null,
-        entry_date: new Date().toISOString().split('T')[0]
+        entry_date: getLocalDate()
       })
       .select()
       .single();
@@ -308,7 +309,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     await supabase
       .from('time_entries')
       .update({
-        end_time: endTime.toISOString(),
+        end_time: getLocalDateTime(),
         duration_minutes: durationMinutes
       })
       .eq('id', activeEntry.id);
@@ -335,8 +336,8 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .insert({
         employee_id: currentEmployee.id,
         break_type: breakType,
-        start_time: new Date().toISOString(),
-        entry_date: new Date().toISOString().split('T')[0]
+        start_time: getLocalDateTime(),
+        entry_date: getLocalDate()
       })
       .select()
       .single();
@@ -366,7 +367,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     await supabase
       .from('break_entries')
       .update({
-        end_time: endTime.toISOString(),
+        end_time: getLocalDateTime(),
         duration_minutes: durationMinutes
       })
       .eq('id', activeBreak.id);
