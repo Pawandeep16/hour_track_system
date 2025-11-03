@@ -8,6 +8,11 @@ export const getLocalDate = (): string => {
 
 export const getLocalDateTime = (): string => {
   const now = new Date();
+  const offset = -now.getTimezoneOffset();
+  const offsetHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+  const offsetMinutes = String(Math.abs(offset) % 60).padStart(2, '0');
+  const offsetSign = offset >= 0 ? '+' : '-';
+
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
@@ -16,7 +21,7 @@ export const getLocalDateTime = (): string => {
   const seconds = String(now.getSeconds()).padStart(2, '0');
   const ms = String(now.getMilliseconds()).padStart(3, '0');
 
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}`;
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}${offsetSign}${offsetHours}:${offsetMinutes}`;
 };
 
 export const formatLocalDate = (date: Date): string => {
