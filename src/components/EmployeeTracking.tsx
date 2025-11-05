@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
-import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock } from 'lucide-react';
+import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock, UserCircle, Mail } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
 import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib/dateUtils';
+import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
 import PinModal from './PinModal';
+import EmployeeProfile from './EmployeeProfile';
 
 const PAID_BREAK_LIMIT = 15;
 const UNPAID_BREAK_LIMIT = 30;
@@ -32,6 +34,11 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const [showPinVerify, setShowPinVerify] = useState(false);
   const [tempEmployee, setTempEmployee] = useState<Employee | null>(null);
   const [showResetPin, setShowResetPin] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [employeeEmail, setEmployeeEmail] = useState('');
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     loadDepartments();

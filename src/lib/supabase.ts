@@ -25,6 +25,12 @@ export interface Employee {
   is_temp: boolean;
   security_pin: string | null;
   pin_set_at: string | null;
+  email: string | null;
+  email_verified: boolean;
+  position: string;
+  verification_code: string | null;
+  verification_code_expires: string | null;
+  auth_user_id: string | null;
   created_at: string;
 }
 
