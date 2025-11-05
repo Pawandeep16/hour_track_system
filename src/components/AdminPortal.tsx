@@ -11,11 +11,15 @@ import {
   Lock,
   LogOut,
   Download,
-  Search
+  Search,
+  Edit,
+  ClockIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PinModal from './PinModal';
+import AdminEmployeeEditor from './AdminEmployeeEditor';
+import TimeCardAdjustment from './TimeCardAdjustment';
 import { getLocalDate, getLocalDateTime } from '../lib/dateUtils';
 
 import Papa from "papaparse";
@@ -77,6 +81,10 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const [summarySearchQuery, setSummarySearchQuery] = useState('');
   const [showResetPinModal, setShowResetPinModal] = useState(false);
   const [selectedEmployeeForPinReset, setSelectedEmployeeForPinReset] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedTimeEntry, setSelectedTimeEntry] = useState<(TimeEntry & { task: Task }) | null>(null);
+  const [showEmployeeEditor, setShowEmployeeEditor] = useState(false);
+  const [showTimeAdjustment, setShowTimeAdjustment] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -1064,6 +1072,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Start</th>
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">End</th>
                                 <th className="px-3 py-2 sm:px-4 sm:py-3 text-right text-xs sm:text-sm font-semibold text-gray-700">Duration</th>
+                                <th className="px-3 py-2 sm:px-4 sm:py-3 text-center text-xs sm:text-sm font-semibold text-gray-700">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
@@ -1082,6 +1091,18 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                                   </td>
                                   <td className="px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-blue-700 text-right">
                                     {formatDuration(entry.duration_minutes || 0)}
+                                  </td>
+                                  <td className="px-3 py-2 sm:px-4 sm:py-3 text-center">
+                                    <button
+                                      onClick={() => {
+                                        setSelectedTimeEntry(entry);
+                                        setShowTimeAdjustment(true);
+                                      }}
+                                      className="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs font-semibold inline-flex items-center gap-1"
+                                    >
+                                      <ClockIcon className="w-3 h-3" />
+                                      Adjust
+                                    </button>
                                   </td>
                                 </tr>
                               ))}
@@ -1520,6 +1541,17 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
                             </div>
                             <div className="flex gap-2 flex-shrink-0">
                               <button
+                                onClick={() => {
+                                  setSelectedEmployee(employee);
+                                  setShowEmployeeEditor(true);
+                                }}
+                                className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold flex items-center gap-1"
+                                title="Edit Employee"
+                              >
+                                <Edit className="w-4 h-4" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </button>
+                              <button
                                 onClick={() => openResetPinModal(employee)}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                 title="Reset PIN"
@@ -1647,6 +1679,36 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
         title={`Reset PIN for ${selectedEmployeeForPinReset?.name || 'Employee'}`}
         isSetup={true}
       />
+
+      {showEmployeeEditor && selectedEmployee && (
+        <AdminEmployeeEditor
+          employee={selectedEmployee}
+          onClose={() => {
+            setShowEmployeeEditor(false);
+            setSelectedEmployee(null);
+          }}
+          onUpdate={() => {
+            loadData();
+            setShowEmployeeEditor(false);
+            setSelectedEmployee(null);
+          }}
+        />
+      )}
+
+      {showTimeAdjustment && selectedTimeEntry && (
+        <TimeCardAdjustment
+          entry={selectedTimeEntry}
+          onClose={() => {
+            setShowTimeAdjustment(false);
+            setSelectedTimeEntry(null);
+          }}
+          onUpdate={() => {
+            loadData();
+            setShowTimeAdjustment(false);
+            setSelectedTimeEntry(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -3,9 +3,9 @@ import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } fr
 import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock, UserCircle, Mail } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
 import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib/dateUtils';
-import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
 import PinModal from './PinModal';
 import EmployeeProfile from './EmployeeProfile';
+import EmailLoginModal from './EmailLoginModal';
 
 const PAID_BREAK_LIMIT = 15;
 const UNPAID_BREAK_LIMIT = 30;
@@ -35,10 +35,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const [tempEmployee, setTempEmployee] = useState<Employee | null>(null);
   const [showResetPin, setShowResetPin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [employeeEmail, setEmployeeEmail] = useState('');
-  const [showEmailVerification, setShowEmailVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   useEffect(() => {
     loadDepartments();
@@ -427,13 +424,22 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
               <h1 className="text-xl sm:text-3xl font-bold text-gray-800">Employee Time Tracker</h1>
             </div>
             {currentEmployee && (
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowProfile(true)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                >
+                  <UserCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Profile</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -469,7 +475,24 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg"
               >
                 <User className="w-5 h-5 sm:w-6 sm:h-6" />
-                Sign In
+                Sign In with Name
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowEmailLogin(true)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg"
+              >
+                <Mail className="w-5 h-5 sm:w-6 sm:h-6" />
+                Sign In with Email
               </button>
             </div>
           ) : !currentEmployee ? (
@@ -739,6 +762,25 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         onSubmit={handleResetPin}
         title="Reset Your PIN"
         isSetup={true}
+      />
+
+      {showProfile && currentEmployee && (
+        <EmployeeProfile
+          employee={currentEmployee}
+          onClose={() => setShowProfile(false)}
+          onUpdate={(updatedEmployee) => setCurrentEmployee(updatedEmployee)}
+        />
+      )}
+
+      <EmailLoginModal
+        isOpen={showEmailLogin}
+        onClose={() => setShowEmailLogin(false)}
+        onSuccess={(employee) => {
+          setCurrentEmployee(employee);
+          localStorage.setItem('employee_id', employee.id);
+          setShowEmailLogin(false);
+          setShowNameEntry(false);
+        }}
       />
     </div>
   );
