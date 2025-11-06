@@ -6,6 +6,7 @@ import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib
 import PinModal from './PinModal';
 import EmployeeProfile from './EmployeeProfile';
 import EmailLoginModal from './EmailLoginModal';
+import ImprovedLoginFlow from './ImprovedLoginFlow';
 
 const PAID_BREAK_LIMIT = 15;
 const UNPAID_BREAK_LIMIT = 30;
@@ -444,57 +445,14 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
           </div>
 
           {showNameEntry ? (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  <User className="w-4 h-4 inline mr-2" />
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  value={employeeName}
-                  onChange={(e) => {
-                    setEmployeeName(e.target.value);
-                    setNameError('');
-                  }}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSignIn();
-                    }
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-base sm:text-lg"
-                  placeholder="Enter your exact full name"
-                />
-                {nameError && (
-                  <p className="text-red-600 text-sm mt-2 font-medium">{nameError}</p>
-                )}
-              </div>
+            <ImprovedLoginFlow
+              onSuccess={(employee) => {
+                setCurrentEmployee(employee);
+                localStorage.setItem('employee_id', employee.id);
+                setShowNameEntry(false);
+              }}
+            />
 
-              <button
-                onClick={handleSignIn}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg"
-              >
-                <User className="w-5 h-5 sm:w-6 sm:h-6" />
-                Sign In with Name
-              </button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">or</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowEmailLogin(true)}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg"
-              >
-                <Mail className="w-5 h-5 sm:w-6 sm:h-6" />
-                Sign In with Email
-              </button>
-            </div>
           ) : !currentEmployee ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>

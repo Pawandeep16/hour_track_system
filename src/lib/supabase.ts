@@ -31,6 +31,7 @@ export interface Employee {
   verification_code: string | null;
   verification_code_expires: string | null;
   auth_user_id: string | null;
+  profile_image_url: string | null;
   created_at: string;
 }
 

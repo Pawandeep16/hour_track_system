@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Employee } from '../lib/supabase';
-import { User, Mail, Lock, Briefcase, CheckCircle, XCircle, Save, X } from 'lucide-react';
+import { User, Mail, Lock, Briefcase, CheckCircle, XCircle, Save, X, Camera } from 'lucide-react';
 import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
@@ -14,6 +14,7 @@ interface EmployeeProfileProps {
 export default function EmployeeProfile({ employee, onClose, onUpdate }: EmployeeProfileProps) {
   const [name, setName] = useState(employee.name);
   const [email, setEmail] = useState(employee.email || '');
+  const [profileImage, setProfileImage] = useState(employee.profile_image_url || '');
   const [verificationCode, setVerificationCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [showPinReset, setShowPinReset] = useState(false);
@@ -131,7 +132,10 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
 
     const { error: updateError } = await supabase
       .from('employees')
-      .update({ name })
+      .update({
+        name,
+        profile_image_url: profileImage || null
+      })
       .eq('id', employee.id);
 
     if (updateError) {
@@ -140,7 +144,7 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
       return;
     }
 
-    const updatedEmployee = { ...employee, name };
+    const updatedEmployee = { ...employee, name, profile_image_url: profileImage || null };
     onUpdate(updatedEmployee);
     setSuccess('Profile updated successfully!');
     setIsSaving(false);
@@ -200,6 +204,38 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
               {success}
             </div>
           )}
+
+          <div className="flex flex-col items-center mb-6">
+            <div className="relative">
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt="Profile"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-blue-200"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center border-4 border-blue-200">
+                  <User className="w-16 h-16 text-white" />
+                </div>
+              )}
+              <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg border-2 border-blue-500">
+                <Camera className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+            <div className="mt-4 w-full max-w-md">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                Profile Image URL
+              </label>
+              <input
+                type="url"
+                value={profileImage}
+                onChange={(e) => setProfileImage(e.target.value)}
+                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-sm"
+                placeholder="https://example.com/image.jpg"
+              />
+              <p className="text-xs text-gray-500 mt-1 text-center">Enter a URL to your profile image</p>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
