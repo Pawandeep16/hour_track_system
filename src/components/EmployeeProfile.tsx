@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, Employee } from '../lib/supabase';
 import { User, Mail, Lock, Briefcase, CheckCircle, XCircle, Save, X, Camera } from 'lucide-react';
-import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
+import { generateVerificationCode, isCodeExpired, sendVerificationEmail } from '../lib/emailService';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
 
@@ -55,9 +55,14 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
       return;
     }
 
-    alert(`Verification code: ${code}\n\n(In production, this would be sent to your email: ${email})`);
-    setIsVerifying(true);
-    setSuccess('Verification code sent! Check your email.');
+    const emailResult = await sendVerificationEmail(email, code, employee.name);
+
+    if (emailResult.success) {
+      setIsVerifying(true);
+      setSuccess('Verification code sent! Check your email.');
+    } else {
+      setError(emailResult.error || 'Failed to send email. Please try again.');
+    }
   };
 
   const handleVerifyCode = async () => {

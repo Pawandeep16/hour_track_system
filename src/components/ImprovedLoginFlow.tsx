@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase, Employee } from '../lib/supabase';
 import { User, Mail, Lock, X, CheckCircle } from 'lucide-react';
-import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
+import { generateVerificationCode, isCodeExpired, sendVerificationEmail } from '../lib/emailService';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
 
@@ -111,7 +111,12 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
       })
       .eq('id', employee.id);
 
-    alert(`Verification code: ${code}\n\n(In production, this would be sent to ${employee.email})`);
+    if (employee.email) {
+      const emailResult = await sendVerificationEmail(employee.email, code, employee.name);
+      if (!emailResult.success) {
+        setError(emailResult.error || 'Failed to send email. Please try again.');
+      }
+    }
   };
 
   const handleVerifyCode = async () => {

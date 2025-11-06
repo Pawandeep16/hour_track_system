@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase, Employee } from '../lib/supabase';
 import { Mail, Lock, X } from 'lucide-react';
-import { generateVerificationCode, isCodeExpired } from '../lib/emailService';
+import { generateVerificationCode, isCodeExpired, sendVerificationEmail } from '../lib/emailService';
 import PinModal from './PinModal';
 
 interface EmailLoginModalProps {
@@ -55,10 +55,15 @@ export default function EmailLoginModal({ isOpen, onClose, onSuccess }: EmailLog
       return;
     }
 
-    alert(`Verification code: ${code}\n\n(In production, this would be sent to your email)`);
-    setTempEmployee(employee);
-    setStep('verify');
-    setError('');
+    const emailResult = await sendVerificationEmail(email, code, employee.name);
+
+    if (emailResult.success) {
+      setTempEmployee(employee);
+      setStep('verify');
+      setError('');
+    } else {
+      setError(emailResult.error || 'Failed to send email. Please try again.');
+    }
   };
 
   const handleVerifyCode = async () => {
