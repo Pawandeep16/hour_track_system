@@ -62,7 +62,11 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
 
   eq(field: string, value: any): QueryBuilder<T> {
     this.promise = null;
-    this.constraints.push(where(field, '==', value));
+    if (field !== 'id') {
+      this.constraints.push(where(field, '==', value));
+    } else {
+      this.constraints.push({ _isDocIdConstraint: true, value });
+    }
     return this;
   }
 
@@ -104,6 +108,22 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
   async maybeSingle(): Promise<{ data: T | null; error: Error | null }> {
     try {
       console.log(`[Firebase] Fetching single document from: ${this.collectionName}`);
+
+      const docIdConstraint = this.constraints.find((c: any) => c._isDocIdConstraint);
+      if (docIdConstraint) {
+        const docRef = doc(db, this.collectionName, docIdConstraint.value);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+          console.log(`[Firebase] No document found with ID ${docIdConstraint.value}`);
+          return { data: null, error: null };
+        }
+
+        const data = { id: docSnap.id, ...docSnap.data() } as T;
+        console.log(`[Firebase] Found document by ID in ${this.collectionName}:`, data);
+        return { data, error: null };
+      }
+
       const q = query(collection(db, this.collectionName), ...this.constraints, limit(1));
       const snapshot = await getDocs(q);
 
@@ -125,7 +145,24 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
   async execute(): Promise<{ data: T[] | null; error: Error | null }> {
     try {
       console.log(`[Firebase] Fetching from collection: ${this.collectionName}`);
-      const q = query(collection(db, this.collectionName), ...this.constraints);
+
+      const docIdConstraint = this.constraints.find((c: any) => c._isDocIdConstraint);
+      if (docIdConstraint) {
+        const docRef = doc(db, this.collectionName, docIdConstraint.value);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+          console.log(`[Firebase] No document found with ID ${docIdConstraint.value}`);
+          return { data: [], error: null };
+        }
+
+        const data = [{ id: docSnap.id, ...docSnap.data() }] as T[];
+        console.log(`[Firebase] Found document by ID in ${this.collectionName}`);
+        return { data, error: null };
+      }
+
+      const validConstraints = this.constraints.filter((c: any) => !c._isDocIdConstraint);
+      const q = query(collection(db, this.collectionName), ...validConstraints);
       const snapshot = await getDocs(q);
 
       const data = snapshot.docs.map(doc => ({
@@ -179,6 +216,14 @@ export const firebaseDb = {
           eq: async (field: string, value: any) => {
             try {
               console.log(`[Firebase] Updating ${collectionName} where ${field} == ${value}`);
+
+              if (field === 'id') {
+                const docRef = doc(db, collectionName, value);
+                await updateDoc(docRef, data as any);
+                console.log(`[Firebase] Updated document ${value} in ${collectionName}`);
+                return { data: null, error: null };
+              }
+
               const q = query(collection(db, collectionName), where(field, '==', value));
               const snapshot = await getDocs(q);
 
@@ -206,6 +251,14 @@ export const firebaseDb = {
           eq: async (field: string, value: any) => {
             try {
               console.log(`[Firebase] Deleting from ${collectionName} where ${field} == ${value}`);
+
+              if (field === 'id') {
+                const docRef = doc(db, collectionName, value);
+                await deleteDoc(docRef);
+                console.log(`[Firebase] Deleted document ${value} from ${collectionName}`);
+                return { data: null, error: null };
+              }
+
               const q = query(collection(db, collectionName), where(field, '==', value));
               const snapshot = await getDocs(q);
 

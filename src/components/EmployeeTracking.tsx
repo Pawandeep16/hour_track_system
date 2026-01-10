@@ -159,13 +159,14 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       setIsStarted(true);
       const { data: taskData } = await supabase
         .from('tasks')
-        .select('*, department:departments(*)')
+        .select('*')
         .eq('id', data.task_id)
-        .single();
+        .maybeSingle();
 
       if (taskData) {
         setSelectedDepartment(taskData.department_id);
         setSelectedTask(taskData.id);
+        await loadTasks(taskData.department_id);
       }
     }
   };
@@ -297,12 +298,10 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         start_time: startTime,
         shift_id: detectedShift?.id || null,
         entry_date: getLocalDate()
-      })
-      .select()
-      .single();
+      });
 
     if (data) {
-      setActiveEntry(data);
+      setActiveEntry(data as any);
       setIsStarted(true);
       loadTodayEntries();
     }
@@ -346,12 +345,10 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         break_type: breakType,
         start_time: getLocalDateTime(),
         entry_date: getLocalDate()
-      })
-      .select()
-      .single();
+      });
 
     if (data) {
-      setActiveBreak(data);
+      setActiveBreak(data as any);
       loadTodayBreaks();
     }
   };
