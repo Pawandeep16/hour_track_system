@@ -127,10 +127,21 @@ The current Firestore rules allow open access to all data. For production use, y
 2. Implement proper security rules based on user authentication
 3. Use Firebase Authentication to manage admin and employee access
 
+## Debugging
+
+The application includes console logging for all Firebase operations. Open your browser's developer console (F12) to see:
+- `[Firebase] Fetching from collection: ...` - When data is being fetched
+- `[Firebase] Fetched X documents from ...` - Successful fetch operations
+- `[Firebase] Inserting into ...` - When data is being added
+- `[Firebase] Inserted document with ID: ...` - Successful insert operations
+- `[Firebase] Error ...` - Any Firebase errors
+
 ## Need Help?
 
 If you encounter any issues:
-1. Check that all environment variables are correctly set
-2. Verify Firestore security rules are published
-3. Check the browser console for any Firebase errors
+1. Check that all environment variables are correctly set in `.env`
+2. Verify Firestore security rules are published (see Step 3)
+3. **Check the browser console (F12) for Firebase operation logs and errors**
 4. Ensure you've created the admin_credentials collection with valid credentials
+5. Verify your Firebase project has Firestore enabled
+6. Check that the Firestore database is in the correct region

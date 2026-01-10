@@ -32,6 +32,7 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
   private collectionName: string;
   private constraints: any[] = [];
   private selectFields: string[] = [];
+  private promise: Promise<{ data: T[] | null; error: Error | null }> | null = null;
 
   constructor(collectionName: string, selectFields?: string) {
     this.collectionName = collectionName;
@@ -40,33 +41,58 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
     }
   }
 
+  then<TResult1 = { data: T[] | null; error: Error | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: T[] | null; error: Error | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    if (!this.promise) {
+      this.promise = this.execute();
+    }
+    return this.promise.then(onfulfilled, onrejected);
+  }
+
+  catch<TResult = never>(
+    onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null
+  ): Promise<{ data: T[] | null; error: Error | null } | TResult> {
+    if (!this.promise) {
+      this.promise = this.execute();
+    }
+    return this.promise.catch(onrejected);
+  }
+
   eq(field: string, value: any): QueryBuilder<T> {
+    this.promise = null;
     this.constraints.push(where(field, '==', value));
     return this;
   }
 
   neq(field: string, value: any): QueryBuilder<T> {
+    this.promise = null;
     this.constraints.push(where(field, '!=', value));
     return this;
   }
 
   gte(field: string, value: any): QueryBuilder<T> {
+    this.promise = null;
     this.constraints.push(where(field, '>=', value));
     return this;
   }
 
   lte(field: string, value: any): QueryBuilder<T> {
+    this.promise = null;
     this.constraints.push(where(field, '<=', value));
     return this;
   }
 
   order(field: string, options?: { ascending?: boolean }): QueryBuilder<T> {
+    this.promise = null;
     const direction = options?.ascending === false ? 'desc' : 'asc';
     this.constraints.push(orderBy(field, direction));
     return this;
   }
 
   limit(count: number): QueryBuilder<T> {
+    this.promise = null;
     this.constraints.push(limit(count));
     return this;
   }
@@ -77,23 +103,28 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
 
   async maybeSingle(): Promise<{ data: T | null; error: Error | null }> {
     try {
+      console.log(`[Firebase] Fetching single document from: ${this.collectionName}`);
       const q = query(collection(db, this.collectionName), ...this.constraints, limit(1));
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
+        console.log(`[Firebase] No document found in ${this.collectionName}`);
         return { data: null, error: null };
       }
 
       const docData = snapshot.docs[0].data();
       const data = { id: snapshot.docs[0].id, ...docData } as T;
+      console.log(`[Firebase] Found document in ${this.collectionName}:`, data);
       return { data, error: null };
     } catch (error) {
+      console.error(`[Firebase] Error fetching single from ${this.collectionName}:`, error);
       return { data: null, error: error as Error };
     }
   }
 
   async execute(): Promise<{ data: T[] | null; error: Error | null }> {
     try {
+      console.log(`[Firebase] Fetching from collection: ${this.collectionName}`);
       const q = query(collection(db, this.collectionName), ...this.constraints);
       const snapshot = await getDocs(q);
 
@@ -102,8 +133,10 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
         ...doc.data()
       })) as T[];
 
+      console.log(`[Firebase] Fetched ${data.length} documents from ${this.collectionName}`);
       return { data, error: null };
     } catch (error) {
+      console.error(`[Firebase] Error fetching from ${this.collectionName}:`, error);
       return { data: null, error: error as Error };
     }
   }
@@ -119,6 +152,7 @@ export const firebaseDb = {
 
       async insert(data: Partial<T> | Partial<T>[]) {
         try {
+          console.log(`[Firebase] Inserting into ${collectionName}:`, data);
           const dataArray = Array.isArray(data) ? data : [data];
           const results = [];
 
@@ -128,11 +162,14 @@ export const firebaseDb = {
               created_at: new Date().toISOString()
             };
             const docRef = await addDoc(collection(db, collectionName), itemWithTimestamp);
-            results.push({ id: docRef.id, ...itemWithTimestamp });
+            const inserted = { id: docRef.id, ...itemWithTimestamp };
+            results.push(inserted);
+            console.log(`[Firebase] Inserted document with ID: ${docRef.id}`);
           }
 
           return { data: Array.isArray(data) ? results : results[0], error: null };
         } catch (error) {
+          console.error(`[Firebase] Error inserting into ${collectionName}:`, error);
           return { data: null, error: error as Error };
         }
       },
