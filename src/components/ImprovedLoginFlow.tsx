@@ -47,6 +47,8 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
   const handlePinSetup = async (pin: string) => {
     if (!tempEmployee) return;
 
+    console.log('[PIN] Setting up PIN for employee:', tempEmployee.id);
+
     const { error: updateError } = await supabase
       .from('employees')
       .update({
@@ -56,19 +58,30 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
       .eq('id', tempEmployee.id);
 
     if (!updateError) {
+      console.log('[PIN] PIN setup successful');
+      setShowPinModal(false);
       onSuccess({ ...tempEmployee, security_pin: pin, pin_set_at: getLocalDateTime() });
     } else {
-      setError('Failed to set up PIN');
+      console.error('[PIN] Failed to set up PIN:', updateError);
+      setError('Failed to set up PIN. Please try again.');
+      setShowPinModal(false);
     }
   };
 
   const handlePinVerify = async (pin: string) => {
     if (!tempEmployee) return;
 
+    console.log('[PIN] Verifying PIN for employee:', tempEmployee.id);
+
     if (pin === tempEmployee.security_pin) {
+      console.log('[PIN] PIN verification successful');
+      setShowPinModal(false);
       onSuccess(tempEmployee);
     } else {
-      alert('Incorrect PIN. Please try again.');
+      console.log('[PIN] PIN verification failed');
+      setError('Incorrect PIN. Please try again.');
+      setShowPinModal(false);
+      setTempEmployee(null);
     }
   };
 
@@ -107,16 +120,19 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
         Continue
       </button>
 
-      <PinModal
-        isOpen={showPinModal}
-        onClose={() => {
-          setShowPinModal(false);
-          setTempEmployee(null);
-        }}
-        onSubmit={pinMode === 'setup' ? handlePinSetup : handlePinVerify}
-        title={pinMode === 'setup' ? 'Set Up Your PIN' : 'Enter Your PIN'}
-        isSetup={pinMode === 'setup'}
-      />
+      {showPinModal && (
+        <PinModal
+          isOpen={showPinModal}
+          onClose={() => {
+            setShowPinModal(false);
+            setTempEmployee(null);
+            setError('');
+          }}
+          onSubmit={pinMode === 'setup' ? handlePinSetup : handlePinVerify}
+          title={pinMode === 'setup' ? 'Set Up Your PIN' : 'Enter Your PIN'}
+          isSetup={pinMode === 'setup'}
+        />
+      )}
     </div>
   );
 }

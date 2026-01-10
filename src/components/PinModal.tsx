@@ -4,7 +4,7 @@ import { Lock, X } from 'lucide-react';
 interface PinModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (pin: string) => void;
+  onSubmit: (pin: string) => Promise<void> | void;
   title: string;
   isSetup?: boolean;
 }
@@ -13,10 +13,20 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleClose = () => {
+    setPin('');
+    setConfirmPin('');
+    setError('');
+    setIsSubmitting(false);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (pin.length !== 4) {
       setError('PIN must be 4 digits');
       return;
@@ -38,15 +48,26 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
       }
     }
 
-    onSubmit(pin);
-    setPin('');
-    setConfirmPin('');
+    setIsSubmitting(true);
     setError('');
+
+    try {
+      await onSubmit(pin);
+      setPin('');
+      setConfirmPin('');
+      setError('');
+    } catch (err) {
+      setError('An error occurred. Please try again.');
+      console.error('[PinModal] Error submitting PIN:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, isConfirm = false) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !isSubmitting) {
       if (isSetup && !isConfirm && pin.length === 4) {
+        document.querySelector<HTMLInputElement>('input[type="password"]:not([value="' + pin + '"])')?.focus();
         return;
       }
       handleSubmit();
@@ -79,8 +100,9 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
           </div>
           {!isSetup && (
             <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="text-gray-400 hover:text-gray-600 disabled:text-gray-300 transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -98,7 +120,8 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
               value={pin}
               onChange={(e) => handlePinChange(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, false)}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-center text-2xl tracking-widest"
+              disabled={isSubmitting}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors text-center text-2xl tracking-widest"
               placeholder="••••"
               maxLength={4}
               autoFocus
@@ -116,7 +139,8 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
                 value={confirmPin}
                 onChange={(e) => handleConfirmPinChange(e.target.value)}
                 onKeyPress={(e) => handleKeyPress(e, true)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-center text-2xl tracking-widest"
+                disabled={isSubmitting}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors text-center text-2xl tracking-widest"
                 placeholder="••••"
                 maxLength={4}
               />
@@ -129,9 +153,10 @@ export default function PinModal({ isOpen, onClose, onSubmit, title, isSetup = f
 
           <button
             onClick={handleSubmit}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
+            disabled={isSubmitting}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
           >
-            {isSetup ? 'Set PIN' : 'Verify PIN'}
+            {isSubmitting ? 'Processing...' : (isSetup ? 'Set PIN' : 'Verify PIN')}
           </button>
 
           {isSetup && (

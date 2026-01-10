@@ -127,14 +127,45 @@ The current Firestore rules allow open access to all data. For production use, y
 2. Implement proper security rules based on user authentication
 3. Use Firebase Authentication to manage admin and employee access
 
+## Employee PIN System
+
+The application uses a secure PIN system for employee login:
+
+### First Login (PIN Setup):
+1. Employee enters their full name as registered in the system
+2. If no PIN exists, they are prompted to create a 4-digit numeric PIN
+3. Employee must confirm the PIN by entering it again
+4. PIN is saved to Firebase and associated with the employee record
+
+### Subsequent Logins (PIN Verification):
+1. Employee enters their full name
+2. System prompts for their 4-digit PIN
+3. If PIN matches, employee is logged in
+4. If PIN is incorrect, employee must try again
+
+### Troubleshooting PIN Issues:
+- Make sure the employee name matches exactly as registered
+- PIN must be exactly 4 digits (numbers only)
+- Check browser console for `[PIN]` messages to see what's happening
+- If an employee forgets their PIN, admin can reset it in the Admin Portal
+
 ## Debugging
 
 The application includes console logging for all Firebase operations. Open your browser's developer console (F12) to see:
+
+**Firebase Operations:**
 - `[Firebase] Fetching from collection: ...` - When data is being fetched
 - `[Firebase] Fetched X documents from ...` - Successful fetch operations
 - `[Firebase] Inserting into ...` - When data is being added
 - `[Firebase] Inserted document with ID: ...` - Successful insert operations
 - `[Firebase] Error ...` - Any Firebase errors
+
+**PIN Operations:**
+- `[PIN] Setting up PIN for employee: ...` - PIN setup process started
+- `[PIN] PIN setup successful` - PIN saved successfully to Firebase
+- `[PIN] Verifying PIN for employee: ...` - PIN verification attempt
+- `[PIN] PIN verification successful` - Correct PIN entered, login granted
+- `[PIN] PIN verification failed` - Incorrect PIN entered
 
 ## Need Help?
 
