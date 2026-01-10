@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
-import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock, UserCircle, Mail } from 'lucide-react';
+import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock, UserCircle } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
 import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib/dateUtils';
 import PinModal from './PinModal';
 import EmployeeProfile from './EmployeeProfile';
-import EmailLoginModal from './EmailLoginModal';
 import ImprovedLoginFlow from './ImprovedLoginFlow';
 
 const PAID_BREAK_LIMIT = 15;
@@ -36,7 +35,6 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const [tempEmployee, setTempEmployee] = useState<Employee | null>(null);
   const [showResetPin, setShowResetPin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showEmailLogin, setShowEmailLogin] = useState(false);
 
   useEffect(() => {
     loadDepartments();
@@ -729,17 +727,6 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
           onUpdate={(updatedEmployee) => setCurrentEmployee(updatedEmployee)}
         />
       )}
-
-      <EmailLoginModal
-        isOpen={showEmailLogin}
-        onClose={() => setShowEmailLogin(false)}
-        onSuccess={(employee) => {
-          setCurrentEmployee(employee);
-          localStorage.setItem('employee_id', employee.id);
-          setShowEmailLogin(false);
-          setShowNameEntry(false);
-        }}
-      />
     </div>
   );
 }

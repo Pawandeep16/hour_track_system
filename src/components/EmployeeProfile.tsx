@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase, Employee } from '../lib/supabase';
-import { User, Mail, Lock, Briefcase, CheckCircle, XCircle, Save, X, Camera } from 'lucide-react';
-import { generateVerificationCode, isCodeExpired, sendVerificationEmail } from '../lib/emailService';
+import { User, Lock, Briefcase, Save, X, Camera } from 'lucide-react';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
 
@@ -13,122 +12,15 @@ interface EmployeeProfileProps {
 
 export default function EmployeeProfile({ employee, onClose, onUpdate }: EmployeeProfileProps) {
   const [name, setName] = useState(employee.name);
-  const [email, setEmail] = useState(employee.email || '');
   const [profileImage, setProfileImage] = useState(employee.profile_image_url || '');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
   const [showPinReset, setShowPinReset] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [emailChanged, setEmailChanged] = useState(false);
-
-  useEffect(() => {
-    if (email !== (employee.email || '')) {
-      setEmailChanged(true);
-    } else {
-      setEmailChanged(false);
-    }
-  }, [email, employee.email]);
-
-  const handleSendVerificationCode = async () => {
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    setError('');
-    const code = generateVerificationCode();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
-
-    const { error: updateError } = await supabase
-      .from('employees')
-      .update({
-        verification_code: code,
-        verification_code_expires: expiresAt.toISOString()
-      })
-      .eq('id', employee.id);
-
-    if (updateError) {
-      setError('Failed to generate verification code');
-      return;
-    }
-
-    const emailResult = await sendVerificationEmail(email, code, employee.name);
-
-    if (emailResult.success) {
-      setIsVerifying(true);
-      setSuccess('Verification code sent! Check your email.');
-    } else {
-      setError(emailResult.error || 'Failed to send email. Please try again.');
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (!verificationCode) {
-      setError('Please enter the verification code');
-      return;
-    }
-
-    const { data } = await supabase
-      .from('employees')
-      .select('verification_code, verification_code_expires')
-      .eq('id', employee.id)
-      .maybeSingle();
-
-    if (!data) {
-      setError('Employee not found');
-      return;
-    }
-
-    if (isCodeExpired(data.verification_code_expires)) {
-      setError('Verification code has expired. Please request a new one.');
-      return;
-    }
-
-    if (data.verification_code !== verificationCode) {
-      setError('Invalid verification code');
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from('employees')
-      .update({
-        email: email,
-        email_verified: true,
-        verification_code: null,
-        verification_code_expires: null
-      })
-      .eq('id', employee.id);
-
-    if (updateError) {
-      setError('Failed to verify email');
-      return;
-    }
-
-    const updatedEmployee = {
-      ...employee,
-      email,
-      email_verified: true,
-      verification_code: null,
-      verification_code_expires: null
-    };
-    onUpdate(updatedEmployee);
-    setSuccess('Email verified successfully!');
-    setIsVerifying(false);
-    setEmailChanged(false);
-    setVerificationCode('');
-  };
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
       setError('Name cannot be empty');
-      return;
-    }
-
-    if (emailChanged && !isVerifying) {
-      setError('Please verify your new email address first');
       return;
     }
 
@@ -261,76 +153,6 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Mail className="w-4 h-4 inline mr-2" />
-              Email Address
-              {employee.email_verified && (
-                <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                  <CheckCircle className="w-3 h-3" />
-                  Verified
-                </span>
-              )}
-              {email && !employee.email_verified && (
-                <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                  <XCircle className="w-3 h-3" />
-                  Not Verified
-                </span>
-              )}
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError('');
-                setSuccess('');
-              }}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
-              placeholder="Enter your email address"
-            />
-            {emailChanged && (
-              <div className="mt-3 space-y-2">
-                {!isVerifying ? (
-                  <button
-                    onClick={handleSendVerificationCode}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Send Verification Code
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
-                      placeholder="Enter 6-digit verification code"
-                      maxLength={6}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleVerifyCode}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                      >
-                        Verify Code
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsVerifying(false);
-                          setVerificationCode('');
-                        }}
-                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
               <Briefcase className="w-4 h-4 inline mr-2" />
               Position
             </label>
@@ -368,7 +190,7 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
           <div className="flex gap-3">
             <button
               onClick={handleSaveProfile}
-              disabled={isSaving || (emailChanged && !employee.email_verified)}
+              disabled={isSaving}
               className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
               <Save className="w-5 h-5" />
