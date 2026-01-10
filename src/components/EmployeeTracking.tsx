@@ -105,9 +105,11 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     const { data } = await supabase
       .from('tasks')
       .select('*')
-      .eq('department_id', departmentId)
-      .order('name');
-    if (data) setTasks(data);
+      .eq('department_id', departmentId);
+    if (data) {
+      const sortedTasks = [...data].sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setTasks(sortedTasks);
+    }
   };
 
   const loadTodayEntries = async () => {
@@ -116,12 +118,14 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     const today = getLocalDate();
     const { data } = await supabase
       .from('time_entries')
-      .select('*, task:tasks(*)')
+      .select('*')
       .eq('employee_id', currentEmployee.id)
-      .eq('entry_date', today)
-      .order('start_time', { ascending: false });
+      .eq('entry_date', today);
 
-    if (data) setTodayEntries(data as any);
+    if (data) {
+      const sortedData = [...data].sort((a: any, b: any) => b.start_time.localeCompare(a.start_time));
+      setTodayEntries(sortedData as any);
+    }
   };
 
   const loadTodayBreaks = async () => {
@@ -132,10 +136,12 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .from('break_entries')
       .select('*')
       .eq('employee_id', currentEmployee.id)
-      .eq('entry_date', today)
-      .order('start_time', { ascending: false });
+      .eq('entry_date', today);
 
-    if (data) setTodayBreaks(data);
+    if (data) {
+      const sortedData = [...data].sort((a: any, b: any) => b.start_time.localeCompare(a.start_time));
+      setTodayBreaks(sortedData);
+    }
   };
 
   const checkActiveEntry = async () => {

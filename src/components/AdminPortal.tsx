@@ -159,9 +159,11 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const loadTasks = async () => {
     const { data } = await supabase
       .from('tasks')
-      .select('*, department:departments(*)')
-      .order('name');
-    if (data) setTasks(data as any);
+      .select('*');
+    if (data) {
+      const sortedTasks = [...data].sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setTasks(sortedTasks as any);
+    }
   };
 
   const loadShifts = async () => {
@@ -182,21 +184,23 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const employeesWithData = await Promise.all(
       allEmployees.map(async (employee) => {
-        const { data: entries } = await supabase
+        const { data: entriesData } = await supabase
           .from('time_entries')
-          .select('*, task:tasks(*), department:departments(*), shift:shifts(*)')
+          .select('*')
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
-          .lte('entry_date', endDate)
-          .order('start_time');
+          .lte('entry_date', endDate);
 
-        const { data: breaks } = await supabase
+        const entries = entriesData ? [...entriesData].sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)) : [];
+
+        const { data: breaksData } = await supabase
           .from('break_entries')
           .select('*')
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
-          .lte('entry_date', endDate)
-          .order('start_time');
+          .lte('entry_date', endDate);
+
+        const breaks = breaksData ? [...breaksData].sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)) : [];
 
         const totalMinutes = (entries || []).reduce(
           (sum, entry) => sum + (entry.duration_minutes || 0),
