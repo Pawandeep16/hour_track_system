@@ -123,7 +123,19 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       .eq('entry_date', today);
 
     if (data) {
-      const sortedData = [...data].sort((a: any, b: any) => b.start_time.localeCompare(a.start_time));
+      const entriesWithTasks = await Promise.all(
+        data.map(async (entry: any) => {
+          const { data: taskData } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('id', entry.task_id)
+            .maybeSingle();
+
+          return { ...entry, task: taskData || { name: 'Unknown Task' } };
+        })
+      );
+
+      const sortedData = [...entriesWithTasks].sort((a: any, b: any) => b.start_time.localeCompare(a.start_time));
       setTodayEntries(sortedData as any);
     }
   };
@@ -541,11 +553,15 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                     </label>
                     <select
                       value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedDepartment(e.target.value);
+                        setSelectedTask('');
+                        loadTasks(e.target.value);
+                      }}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
                     >
                       <option value="">Select Department</option>
-                      {departments.map(dept => (
+                      {departments?.map(dept => (
                         <option key={dept.id} value={dept.id}>{dept.name}</option>
                       ))}
                     </select>
@@ -562,7 +578,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
                       >
                         <option value="">Select Task</option>
-                        {tasks.map(task => (
+                        {tasks?.map(task => (
                           <option key={task.id} value={task.id}>{task.name}</option>
                         ))}
                       </select>
@@ -670,7 +686,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-gray-800 text-sm sm:text-base">{entry.task.name}</p>
+                              <p className="font-semibold text-gray-800 text-sm sm:text-base">{entry.task?.name || 'Unknown Task'}</p>
                               <span className="text-xs text-gray-500 font-medium">
                                 {entry.entry_date}
                               </span>
