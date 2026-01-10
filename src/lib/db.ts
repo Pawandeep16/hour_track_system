@@ -1,13 +1,12 @@
 import { firebaseDb } from './firebaseOperations';
 
-export const supabase = firebaseDb;
-
+export { db } from './firebase';
+export { firebaseDb as supabase };
 export type {
   Department,
   Task,
   Employee,
   TimeEntry,
   BreakEntry,
-  Shift,
-  AdminCredentials
+  Shift
 } from './firebase';
