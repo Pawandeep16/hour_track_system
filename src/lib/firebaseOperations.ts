@@ -174,38 +174,54 @@ export const firebaseDb = {
         }
       },
 
-      async update(data: Partial<T>) {
+      update(data: Partial<T>) {
         return {
           eq: async (field: string, value: any) => {
             try {
+              console.log(`[Firebase] Updating ${collectionName} where ${field} == ${value}`);
               const q = query(collection(db, collectionName), where(field, '==', value));
               const snapshot = await getDocs(q);
 
+              if (snapshot.empty) {
+                console.log(`[Firebase] No documents found to update in ${collectionName}`);
+                return { data: null, error: null };
+              }
+
               for (const docSnapshot of snapshot.docs) {
                 await updateDoc(doc(db, collectionName, docSnapshot.id), data as any);
+                console.log(`[Firebase] Updated document ${docSnapshot.id} in ${collectionName}`);
               }
 
               return { data: null, error: null };
             } catch (error) {
+              console.error(`[Firebase] Error updating ${collectionName}:`, error);
               return { data: null, error: error as Error };
             }
           }
         };
       },
 
-      async delete() {
+      delete() {
         return {
           eq: async (field: string, value: any) => {
             try {
+              console.log(`[Firebase] Deleting from ${collectionName} where ${field} == ${value}`);
               const q = query(collection(db, collectionName), where(field, '==', value));
               const snapshot = await getDocs(q);
 
+              if (snapshot.empty) {
+                console.log(`[Firebase] No documents found to delete in ${collectionName}`);
+                return { data: null, error: null };
+              }
+
               for (const docSnapshot of snapshot.docs) {
                 await deleteDoc(doc(db, collectionName, docSnapshot.id));
+                console.log(`[Firebase] Deleted document ${docSnapshot.id} from ${collectionName}`);
               }
 
               return { data: null, error: null };
             } catch (error) {
+              console.error(`[Firebase] Error deleting from ${collectionName}:`, error);
               return { data: null, error: error as Error };
             }
           }
