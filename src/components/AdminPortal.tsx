@@ -176,12 +176,19 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadEmployeesWithEntries = async () => {
+    console.log(`[AdminPortal] Loading employees with entries for date range: ${startDate} to ${endDate}`);
+
     const { data: allEmployees } = await firebaseDb
       .from('employees')
       .select('*')
       .order('name');
 
-    if (!allEmployees) return;
+    if (!allEmployees) {
+      console.log('[AdminPortal] No employees found in database');
+      return;
+    }
+
+    console.log(`[AdminPortal] Found ${allEmployees.length} employees`);
 
     const { data: allTasks } = await firebaseDb.from<Task>('tasks').select('*');
     const { data: allDepartments } = await firebaseDb.from<Department>('departments').select('*');
@@ -199,6 +206,8 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
           .lte('entry_date', endDate);
+
+        console.log(`[AdminPortal] Employee ${employee.name}: found ${entriesData?.length || 0} time entries`);
 
         const entries = (entriesData || []).map((entry: any) => ({
           ...entry,
@@ -240,7 +249,9 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       })
     );
 
-    setEmployees(employeesWithData.filter(e => e.entries.length > 0 || e.breaks.length > 0));
+    const filteredEmployees = employeesWithData.filter(e => e.entries.length > 0 || e.breaks.length > 0);
+    console.log(`[AdminPortal] Total employees with entries: ${filteredEmployees.length}`);
+    setEmployees(filteredEmployees);
   };
 
   const generateDepartmentSummaries = async () => {
