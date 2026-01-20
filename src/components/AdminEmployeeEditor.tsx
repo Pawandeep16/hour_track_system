@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, Employee } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { Employee } from '../lib/firebase';
 import { User, Mail, Briefcase, Save, X, CheckCircle, XCircle } from 'lucide-react';
 import { getLocalDateTime } from '../lib/dateUtils';
 
@@ -46,7 +47,7 @@ export default function AdminEmployeeEditor({ employee, onClose, onUpdate }: Adm
     setIsSaving(true);
     setError('');
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await firebaseDb
       .from('employees')
       .update({
         name: name.trim(),
@@ -77,7 +78,7 @@ export default function AdminEmployeeEditor({ employee, onClose, onUpdate }: Adm
       return;
     }
 
-    const { error } = await supabase
+    const { error } = await firebaseDb
       .from('employees')
       .update({
         security_pin: null,

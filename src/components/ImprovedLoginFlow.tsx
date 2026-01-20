@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, Employee } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { Employee } from '../lib/firebase';
 import { User, Lock } from 'lucide-react';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
@@ -21,7 +22,7 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
       return;
     }
 
-    const { data: employee } = await supabase
+    const { data: employee } = await firebaseDb
       .from('employees')
       .select('*')
       .eq('name', name.trim())
@@ -49,7 +50,7 @@ export default function ImprovedLoginFlow({ onSuccess }: ImprovedLoginFlowProps)
 
     console.log('[PIN] Setting up PIN for employee:', tempEmployee.id);
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await firebaseDb
       .from('employees')
       .update({
         security_pin: pin,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, Employee } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { Employee } from '../lib/firebase';
 import { User, Lock, Briefcase, Save, X, Camera } from 'lucide-react';
 import { getLocalDateTime } from '../lib/dateUtils';
 import PinModal from './PinModal';
@@ -27,7 +28,7 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
     setIsSaving(true);
     setError('');
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await firebaseDb
       .from('employees')
       .update({
         name,
@@ -52,7 +53,7 @@ export default function EmployeeProfile({ employee, onClose, onUpdate }: Employe
   };
 
   const handleResetPin = async (newPin: string) => {
-    const { error } = await supabase
+    const { error } = await firebaseDb
       .from('employees')
       .update({
         security_pin: newPin,

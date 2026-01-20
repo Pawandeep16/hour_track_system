@@ -1,4 +1,4 @@
-import { Shift } from './supabase';
+import { Shift } from './firebase';
 
 export const detectShift = (startTime: string, shifts: Shift[]): Shift | null => {
   if (!shifts || shifts.length === 0) return null;

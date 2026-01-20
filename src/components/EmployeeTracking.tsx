@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/firebase';
 import { Clock, Play, StopCircle, User, LogOut, Coffee, Lock, UserCircle } from 'lucide-react';
 import { detectShift } from '../lib/shiftUtils';
 import { getLocalDate, getLocalDateTime, calculateDurationMinutes } from '../lib/dateUtils';
@@ -69,7 +70,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   };
 
   const loadEmployeeById = async (employeeId: string) => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('employees')
       .select('*')
       .eq('id', employeeId)
@@ -86,7 +87,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   };
 
   const loadDepartments = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('departments')
       .select('*')
       .order('name');
@@ -94,7 +95,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   };
 
   const loadShifts = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('shifts')
       .select('*')
       .order('start_time');
@@ -102,7 +103,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   };
 
   const loadTasks = async (departmentId: string) => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('tasks')
       .select('*')
       .eq('department_id', departmentId);
@@ -116,7 +117,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     if (!currentEmployee) return;
 
     const today = getLocalDate();
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('time_entries')
       .select('*')
       .eq('employee_id', currentEmployee.id)
@@ -125,7 +126,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     if (data) {
       const entriesWithTasks = await Promise.all(
         data.map(async (entry: any) => {
-          const { data: taskData } = await supabase
+          const { data: taskData } = await firebaseDb
             .from('tasks')
             .select('*')
             .eq('id', entry.task_id)
@@ -144,7 +145,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     if (!currentEmployee) return;
 
     const today = getLocalDate();
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('break_entries')
       .select('*')
       .eq('employee_id', currentEmployee.id)
@@ -159,7 +160,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const checkActiveEntry = async () => {
     if (!currentEmployee) return;
 
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('time_entries')
       .select('*')
       .eq('employee_id', currentEmployee.id)
@@ -169,7 +170,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     if (data) {
       setActiveEntry(data);
       setIsStarted(true);
-      const { data: taskData } = await supabase
+      const { data: taskData } = await firebaseDb
         .from('tasks')
         .select('*')
         .eq('id', data.task_id)
@@ -186,7 +187,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const checkActiveBreak = async () => {
     if (!currentEmployee) return;
 
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('break_entries')
       .select('*')
       .eq('employee_id', currentEmployee.id)
@@ -204,7 +205,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       return;
     }
 
-    const { data: existingEmployee } = await supabase
+    const { data: existingEmployee } = await firebaseDb
       .from('employees')
       .select('*')
       .eq('name', employeeName.trim())
@@ -227,7 +228,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const handlePinSetup = async (pin: string) => {
     if (!tempEmployee) return;
 
-    const { error } = await supabase
+    const { error } = await firebaseDb
       .from('employees')
       .update({
         security_pin: pin,
@@ -261,7 +262,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
   const handleResetPin = async (newPin: string) => {
     if (!currentEmployee) return;
 
-    const { error } = await supabase
+    const { error } = await firebaseDb
       .from('employees')
       .update({
         security_pin: newPin,
@@ -301,7 +302,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       setCurrentShift(detectedShift);
     }
 
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('time_entries')
       .insert({
         employee_id: currentEmployee.id,
@@ -325,7 +326,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
     const endTimeStr = getLocalDateTime();
     const durationMinutes = calculateDurationMinutes(activeEntry.start_time, endTimeStr);
 
-    await supabase
+    await firebaseDb
       .from('time_entries')
       .update({
         end_time: endTimeStr,
@@ -350,7 +351,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       await handleEnd();
     }
 
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('break_entries')
       .insert({
         employee_id: currentEmployee.id,
@@ -380,7 +381,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
       if (!confirmEnd) return;
     }
 
-    await supabase
+    await firebaseDb
       .from('break_entries')
       .update({
         end_time: endTimeStr,

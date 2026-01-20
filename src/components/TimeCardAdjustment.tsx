@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, TimeEntry, Task } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { TimeEntry, Task } from '../lib/firebase';
 import { Clock, Save, X, Trash2 } from 'lucide-react';
 import { calculateDurationMinutes } from '../lib/dateUtils';
 
@@ -54,7 +55,7 @@ export default function TimeCardAdjustment({ entry, onClose, onUpdate }: TimeCar
       updates.duration_minutes = null;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await firebaseDb
       .from('time_entries')
       .update(updates)
       .eq('id', entry.id);
@@ -79,7 +80,7 @@ export default function TimeCardAdjustment({ entry, onClose, onUpdate }: TimeCar
       return;
     }
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await firebaseDb
       .from('time_entries')
       .delete()
       .eq('id', entry.id);

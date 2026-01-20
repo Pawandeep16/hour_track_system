@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, BreakEntry } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { BreakEntry } from '../lib/firebase';
 import { Coffee, Save, X, Trash2 } from 'lucide-react';
 import { calculateDurationMinutes } from '../lib/dateUtils';
 
@@ -57,7 +58,7 @@ export default function BreakAdjustment({ breakEntry, employeeName, onClose, onU
       updates.duration_minutes = null;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await firebaseDb
       .from('break_entries')
       .update(updates)
       .eq('id', breakEntry.id);
@@ -82,7 +83,7 @@ export default function BreakAdjustment({ breakEntry, employeeName, onClose, onU
       return;
     }
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await firebaseDb
       .from('break_entries')
       .delete()
       .eq('id', breakEntry.id);

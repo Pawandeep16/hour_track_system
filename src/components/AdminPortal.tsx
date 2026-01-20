@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase, Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/supabase';
+import { firebaseDb } from '../lib/firebaseOperations';
+import { Department, Task, Employee, TimeEntry, BreakEntry, Shift } from '../lib/firebase';
 import {
   BarChart3,
   Users,
@@ -105,7 +106,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     e.preventDefault();
     setLoginError('');
 
-    const { data, error } = await supabase
+    const { data, error } = await firebaseDb
       .from('admin_credentials')
       .select('*')
       .eq('username', username)
@@ -138,7 +139,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadAllEmployees = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('employees')
       .select('*')
       .order('name');
@@ -149,7 +150,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadDepartments = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('departments')
       .select('*')
       .order('name');
@@ -157,7 +158,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadTasks = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('tasks')
       .select('*');
     if (data) {
@@ -167,7 +168,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadShifts = async () => {
-    const { data } = await supabase
+    const { data } = await firebaseDb
       .from('shifts')
       .select('*')
       .order('start_time');
@@ -175,25 +176,38 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const loadEmployeesWithEntries = async () => {
-    const { data: allEmployees } = await supabase
+    const { data: allEmployees } = await firebaseDb
       .from('employees')
       .select('*')
       .order('name');
 
     if (!allEmployees) return;
 
+    const { data: allTasks } = await firebaseDb.from<Task>('tasks').select('*');
+    const { data: allDepartments } = await firebaseDb.from<Department>('departments').select('*');
+    const { data: allShifts } = await firebaseDb.from<Shift>('shifts').select('*');
+
+    const tasksMap = new Map(allTasks?.map(t => [t.id, t]) || []);
+    const departmentsMap = new Map(allDepartments?.map(d => [d.id, d]) || []);
+    const shiftsMap = new Map(allShifts?.map(s => [s.id, s]) || []);
+
     const employeesWithData = await Promise.all(
       allEmployees.map(async (employee) => {
-        const { data: entriesData } = await supabase
+        const { data: entriesData } = await firebaseDb
           .from('time_entries')
-          .select('*, task:tasks(*), department:departments(*), shift:shifts(*)')
+          .select('*')
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
           .lte('entry_date', endDate);
 
-        const entries = entriesData ? [...entriesData].sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)) : [];
+        const entries = (entriesData || []).map((entry: any) => ({
+          ...entry,
+          task: tasksMap.get(entry.task_id),
+          department: departmentsMap.get(entry.department_id),
+          shift: entry.shift_id ? shiftsMap.get(entry.shift_id) : null
+        })).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
 
-        const { data: breaksData } = await supabase
+        const { data: breaksData } = await firebaseDb
           .from('break_entries')
           .select('*')
           .eq('employee_id', employee.id)
@@ -202,23 +216,23 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
         const breaks = breaksData ? [...breaksData].sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)) : [];
 
-        const totalMinutes = (entries || []).reduce(
+        const totalMinutes = entries.reduce(
           (sum, entry) => sum + (entry.duration_minutes || 0),
           0
         );
 
-        const totalBreakMinutes = (breaks || []).reduce(
+        const totalBreakMinutes = breaks.reduce(
           (sum, breakEntry) => sum + (breakEntry.duration_minutes || 0),
           0
         );
 
-        const firstEntry = entries && entries.length > 0 ? entries[0] : null;
-        const employeeShift = firstEntry ? (firstEntry as any).shift : null;
+        const firstEntry = entries.length > 0 ? entries[0] : null;
+        const employeeShift = firstEntry?.shift || null;
 
         return {
           ...employee,
-          entries: entries || [],
-          breaks: breaks || [],
+          entries,
+          breaks,
           totalMinutes,
           totalBreakMinutes,
           shift: employeeShift
@@ -230,19 +244,36 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const generateDepartmentSummaries = async () => {
-    const { data: entries } = await supabase
+    const { data: entries } = await firebaseDb
       .from('time_entries')
-      .select('*, task:tasks(*), department:departments(*), employee:employees(*)')
+      .select('*')
       .gte('entry_date', startDate)
-      .lte('entry_date', endDate)
-      .not('end_time', 'is', null);
+      .lte('entry_date', endDate);
 
     if (!entries) return;
+
+    const completedEntries = entries.filter((entry: any) => entry.end_time !== null);
+
+    const { data: allTasks } = await firebaseDb.from<Task>('tasks').select('*');
+    const { data: allDepartments } = await firebaseDb.from<Department>('departments').select('*');
+    const { data: allEmployees } = await firebaseDb.from<Employee>('employees').select('*');
+
+    const tasksMap = new Map(allTasks?.map(t => [t.id, t]) || []);
+    const departmentsMap = new Map(allDepartments?.map(d => [d.id, d]) || []);
+    const employeesMap = new Map(allEmployees?.map(e => [e.id, e]) || []);
+
+    const enrichedEntries = completedEntries.map((entry: any) => ({
+      ...entry,
+      task: tasksMap.get(entry.task_id),
+      department: departmentsMap.get(entry.department_id),
+      employee: employeesMap.get(entry.employee_id)
+    }));
 
     const departmentMap = new Map<string, DepartmentSummary>();
     let grandTotal = 0;
 
-    entries.forEach((entry: any) => {
+    enrichedEntries.forEach((entry: any) => {
+      if (!entry.task || !entry.department || !entry.employee) return;
       if (employeeTypeFilter === 'regular' && entry.employee.is_temp) return;
       if (employeeTypeFilter === 'temp' && !entry.employee.is_temp) return;
 
@@ -299,7 +330,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const addDepartment = async () => {
     if (!newDeptName.trim()) return;
 
-    await supabase.from('departments').insert({ name: newDeptName.trim() });
+    await firebaseDb.from('departments').insert({ name: newDeptName.trim() });
     setNewDeptName('');
     loadDepartments();
   };
@@ -307,7 +338,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const addTask = async () => {
     if (!newTaskName.trim() || !newTaskDept) return;
 
-    await supabase.from('tasks').insert({
+    await firebaseDb.from('tasks').insert({
       name: newTaskName.trim(),
       department_id: newTaskDept
     });
@@ -319,13 +350,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   const deleteTask = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
-    await supabase.from('tasks').delete().eq('id', taskId);
+    await firebaseDb.from('tasks').delete().eq('id', taskId);
     loadTasks();
   };
 
   const deleteDepartment = async (deptId: string) => {
     if (!confirm('Are you sure? This will delete all associated tasks!')) return;
-    await supabase.from('departments').delete().eq('id', deptId);
+    await firebaseDb.from('departments').delete().eq('id', deptId);
     loadDepartments();
     loadTasks();
   };
@@ -350,7 +381,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const employeeCode = generateEmployeeCode(newEmployeeName.trim(), false);
 
-    await supabase
+    await firebaseDb
       .from('employees')
       .insert({ name: newEmployeeName.trim(), employee_code: employeeCode, is_temp: false });
 
@@ -363,7 +394,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const employeeCode = generateEmployeeCode(newTempEmployeeName.trim(), true);
 
-    await supabase
+    await firebaseDb
       .from('employees')
       .insert({ name: newTempEmployeeName.trim(), employee_code: employeeCode, is_temp: true });
 
@@ -373,14 +404,14 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   const deleteEmployee = async (empId: string) => {
     if (!confirm('Are you sure you want to delete this employee?')) return;
-    await supabase.from('employees').delete().eq('id', empId);
+    await firebaseDb.from('employees').delete().eq('id', empId);
     loadAllEmployees();
   };
 
   const handleResetEmployeePin = async (newPin: string) => {
     if (!selectedEmployeeForPinReset) return;
 
-    const { error } = await supabase
+    const { error } = await firebaseDb
       .from('employees')
       .update({
         security_pin: newPin,
@@ -455,7 +486,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
             }));
 
           if (employees.length > 0) {
-            await supabase.from('employees').insert(employees);
+            await firebaseDb.from('employees').insert(employees);
             loadAllEmployees();
             alert(`Successfully imported ${employees.length} employees`);
           }
@@ -479,7 +510,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           }));
 
         if (employees.length > 0) {
-          await supabase.from('employees').insert(employees);
+          await firebaseDb.from('employees').insert(employees);
           loadAllEmployees();
           alert(`Successfully imported ${employees.length} employees`);
         }
@@ -511,7 +542,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
             }));
 
           if (employees.length > 0) {
-            await supabase.from('employees').insert(employees);
+            await firebaseDb.from('employees').insert(employees);
             loadAllEmployees();
             alert(`Successfully imported ${employees.length} temp employees`);
           }
@@ -535,7 +566,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           }));
 
         if (employees.length > 0) {
-          await supabase.from('employees').insert(employees);
+          await firebaseDb.from('employees').insert(employees);
           loadAllEmployees();
           alert(`Successfully imported ${employees.length} temp employees`);
         }
@@ -659,7 +690,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const addShift = async () => {
     if (!newShiftName.trim() || !newShiftStart || !newShiftEnd) return;
 
-    await supabase.from('shifts').insert({
+    await firebaseDb.from('shifts').insert({
       name: newShiftName.trim(),
       start_time: newShiftStart + ':00',
       end_time: newShiftEnd + ':00',
@@ -675,7 +706,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
   const deleteShift = async (shiftId: string) => {
     if (!confirm('Are you sure you want to delete this shift?')) return;
-    await supabase.from('shifts').delete().eq('id', shiftId);
+    await firebaseDb.from('shifts').delete().eq('id', shiftId);
     loadShifts();
   };
 
