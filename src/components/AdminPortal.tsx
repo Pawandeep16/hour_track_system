@@ -186,7 +186,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       allEmployees.map(async (employee) => {
         const { data: entriesData } = await supabase
           .from('time_entries')
-          .select('*')
+          .select('*, task:tasks(*), department:departments(*), shift:shifts(*)')
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
           .lte('entry_date', endDate);
@@ -560,7 +560,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     yPos += 10;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Report Date: ${new Date(selectedDate).toLocaleDateString()}`, pageWidth / 2, yPos, { align: 'center' });
+    doc.text(`Report Period: ${startDate} to ${endDate}`, pageWidth / 2, yPos, { align: 'center' });
 
     yPos += 15;
 
@@ -625,7 +625,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
       }
     });
 
-    doc.save(`time-tracking-report-${selectedDate}.pdf`);
+    doc.save(`time-tracking-report-${startDate}_to_${endDate}.pdf`);
   };
 
   const getFilteredDepartmentSummaries = () => {
@@ -818,6 +818,45 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     ];
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
+
+    const individualData: any[] = [];
+    filteredEmployees.forEach(employee => {
+      employee.entries.forEach(entry => {
+        const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
+        if (!matchesDept) return;
+
+        const startTime = new Date(entry.start_time);
+        const endTime = entry.end_time ? new Date(entry.end_time) : null;
+        const duration = entry.duration_minutes || 0;
+
+        individualData.push({
+          'Employee Name': employee.name,
+          'Employee ID': employee.employee_code,
+          'Employee Type': employee.is_temp ? 'Temp' : 'Regular',
+          'Date': entry.entry_date,
+          'Department': entry.department?.name || 'Unknown',
+          'Task': entry.task?.name || 'Unknown',
+          'Start Time': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+          'End Time': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'In Progress',
+          'Duration (hours)': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
+        });
+      });
+    });
+
+    const individualSheet = XLSX.utils.json_to_sheet(individualData);
+    individualSheet['!cols'] = [
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, individualSheet, 'Individual Details');
+
     XLSX.writeFile(workbook, `time_report_${startDate}_to_${endDate}.xlsx`);
   };
 
