@@ -392,10 +392,30 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const employeeCode = generateEmployeeCode(newEmployeeName.trim(), false);
 
-    await firebaseDb
+    const { data, error } = await firebaseDb
       .from('employees')
-      .insert({ name: newEmployeeName.trim(), employee_code: employeeCode, is_temp: false });
+      .insert({
+        name: newEmployeeName.trim(),
+        employee_code: employeeCode,
+        is_temp: false,
+        security_pin: null,
+        pin_set_at: null,
+        email: null,
+        email_verified: false,
+        position: 'Warehouse Associate',
+        verification_code: null,
+        verification_code_expires: null,
+        auth_user_id: null,
+        profile_image_url: null
+      });
 
+    if (error) {
+      console.error('[AdminPortal] Error adding employee:', error);
+      alert('Failed to add employee. Please try again.');
+      return;
+    }
+
+    console.log('[AdminPortal] Employee added successfully:', data);
     setNewEmployeeName('');
     loadAllEmployees();
   };
@@ -405,10 +425,30 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const employeeCode = generateEmployeeCode(newTempEmployeeName.trim(), true);
 
-    await firebaseDb
+    const { data, error } = await firebaseDb
       .from('employees')
-      .insert({ name: newTempEmployeeName.trim(), employee_code: employeeCode, is_temp: true });
+      .insert({
+        name: newTempEmployeeName.trim(),
+        employee_code: employeeCode,
+        is_temp: true,
+        security_pin: null,
+        pin_set_at: null,
+        email: null,
+        email_verified: false,
+        position: 'Warehouse Associate',
+        verification_code: null,
+        verification_code_expires: null,
+        auth_user_id: null,
+        profile_image_url: null
+      });
 
+    if (error) {
+      console.error('[AdminPortal] Error adding temp employee:', error);
+      alert('Failed to add temp employee. Please try again.');
+      return;
+    }
+
+    console.log('[AdminPortal] Temp employee added successfully:', data);
     setNewTempEmployeeName('');
     loadAllEmployees();
   };
@@ -493,13 +533,27 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
             .map((row: any) => ({
               name: row.name.trim(),
               employee_code: generateEmployeeCode(row.name.trim(), false),
-              is_temp: false
+              is_temp: false,
+              security_pin: null,
+              pin_set_at: null,
+              email: null,
+              email_verified: false,
+              position: 'Warehouse Associate',
+              verification_code: null,
+              verification_code_expires: null,
+              auth_user_id: null,
+              profile_image_url: null
             }));
 
           if (employees.length > 0) {
-            await firebaseDb.from('employees').insert(employees);
-            loadAllEmployees();
-            alert(`Successfully imported ${employees.length} employees`);
+            const { error } = await firebaseDb.from('employees').insert(employees);
+            if (error) {
+              console.error('[AdminPortal] Error importing employees:', error);
+              alert('Failed to import employees. Please try again.');
+            } else {
+              loadAllEmployees();
+              alert(`Successfully imported ${employees.length} employees`);
+            }
           }
         }
       });
@@ -517,13 +571,27 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
           .map((row: any) => ({
             name: row.name.trim(),
             employee_code: generateEmployeeCode(row.name.trim(), false),
-            is_temp: false
+            is_temp: false,
+            security_pin: null,
+            pin_set_at: null,
+            email: null,
+            email_verified: false,
+            position: 'Warehouse Associate',
+            verification_code: null,
+            verification_code_expires: null,
+            auth_user_id: null,
+            profile_image_url: null
           }));
 
         if (employees.length > 0) {
-          await firebaseDb.from('employees').insert(employees);
-          loadAllEmployees();
-          alert(`Successfully imported ${employees.length} employees`);
+          const { error } = await firebaseDb.from('employees').insert(employees);
+          if (error) {
+            console.error('[AdminPortal] Error importing employees from Excel:', error);
+            alert('Failed to import employees. Please try again.');
+          } else {
+            loadAllEmployees();
+            alert(`Successfully imported ${employees.length} employees`);
+          }
         }
       };
       reader.readAsBinaryString(file);
