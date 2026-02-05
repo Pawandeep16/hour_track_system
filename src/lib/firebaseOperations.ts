@@ -21,6 +21,7 @@ interface QueryBuilder<T> {
   neq(field: string, value: any): QueryBuilder<T>;
   gte(field: string, value: any): QueryBuilder<T>;
   lte(field: string, value: any): QueryBuilder<T>;
+  is(field: string, value: any): QueryBuilder<T>;
   order(field: string, options?: { ascending?: boolean }): QueryBuilder<T>;
   limit(count: number): QueryBuilder<T>;
   single(): Promise<{ data: T | null; error: Error | null }>;
@@ -85,6 +86,16 @@ class FirestoreQueryBuilder<T> implements QueryBuilder<T> {
   lte(field: string, value: any): QueryBuilder<T> {
     this.promise = null;
     this.constraints.push(where(field, '<=', value));
+    return this;
+  }
+
+  is(field: string, value: any): QueryBuilder<T> {
+    this.promise = null;
+    if (value === null) {
+      this.constraints.push(where(field, '==', null));
+    } else {
+      this.constraints.push(where(field, '==', value));
+    }
     return this;
   }
 

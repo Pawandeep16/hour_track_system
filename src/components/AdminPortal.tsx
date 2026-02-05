@@ -591,83 +591,89 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const generatePDFReport = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let yPos = 20;
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
 
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Employee Time Tracking Report', pageWidth / 2, yPos, { align: 'center' });
-
-    yPos += 10;
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Report Period: ${startDate} to ${endDate}`, pageWidth / 2, yPos, { align: 'center' });
-
-    yPos += 15;
-
-    employees.forEach((employee, index) => {
-      if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFontSize(14);
+      doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${employee.name}`, 14, yPos);
+      doc.text('Employee Time Tracking Report', pageWidth / 2, yPos, { align: 'center' });
 
-      yPos += 6;
-      doc.setFontSize(9);
+      yPos += 10;
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Employee ID: ${employee.employee_code}`, 14, yPos);
-      doc.setTextColor(0, 0, 0);
+      doc.text(`Report Period: ${startDate} to ${endDate}`, pageWidth / 2, yPos, { align: 'center' });
 
-      yPos += 6;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total Time: ${formatDuration(employee.totalMinutes)}`, 14, yPos);
+      yPos += 15;
 
-      if (employee.totalBreakMinutes > 0) {
-        yPos += 5;
+      employees.forEach((employee, index) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${employee.name}`, 14, yPos);
+
+        yPos += 6;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Break Time: ${formatDuration(employee.totalBreakMinutes)}`, 14, yPos);
-      }
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Employee ID: ${employee.employee_code}`, 14, yPos);
+        doc.setTextColor(0, 0, 0);
 
-      yPos += 8;
+        yPos += 6;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Total Time: ${formatDuration(employee.totalMinutes)}`, 14, yPos);
 
-      const tableData = employee.entries.map((entry: any) => [
-        entry.department.name,
-        entry.task.name,
-        new Date(entry.start_time).toLocaleTimeString(),
-        entry.end_time ? new Date(entry.end_time).toLocaleTimeString() : 'In Progress',
-        formatDuration(entry.duration_minutes || 0)
-      ]);
+        if (employee.totalBreakMinutes > 0) {
+          yPos += 5;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Break Time: ${formatDuration(employee.totalBreakMinutes)}`, 14, yPos);
+        }
 
-      autoTable(doc, {
-        startY: yPos,
-        head: [['Department', 'Task', 'Start Time', 'End Time', 'Duration']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
-        bodyStyles: { fontSize: 8 },
-        margin: { left: 14, right: 14 },
-        didDrawPage: (data) => {
-          yPos = data.cursor?.y || yPos;
+        yPos += 8;
+
+        const tableData = employee.entries.map((entry: any) => [
+          entry.department?.name || 'Unknown',
+          entry.task?.name || 'Unknown',
+          new Date(entry.start_time).toLocaleTimeString(),
+          entry.end_time ? new Date(entry.end_time).toLocaleTimeString() : 'In Progress',
+          formatDuration(entry.duration_minutes || 0)
+        ]);
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Department', 'Task', 'Start Time', 'End Time', 'Duration']],
+          body: tableData,
+          theme: 'grid',
+          headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+          bodyStyles: { fontSize: 8 },
+          margin: { left: 14, right: 14 },
+          didDrawPage: (data) => {
+            yPos = data.cursor?.y || yPos;
+          }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+
+        if (index < employees.length - 1) {
+          doc.setDrawColor(200, 200, 200);
+          doc.line(14, yPos, pageWidth - 14, yPos);
+          yPos += 10;
         }
       });
 
-      yPos = (doc as any).lastAutoTable.finalY + 10;
-
-      if (index < employees.length - 1) {
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, yPos, pageWidth - 14, yPos);
-        yPos += 10;
-      }
-    });
-
-    doc.save(`time-tracking-report-${startDate}_to_${endDate}.pdf`);
+      doc.save(`time-tracking-report-${startDate}_to_${endDate}.pdf`);
+      console.log('PDF report generated successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    }
   };
 
   const getFilteredDepartmentSummaries = () => {
@@ -722,184 +728,190 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const generateExcelReport = () => {
-    const workbook = XLSX.utils.book_new();
+    try {
+      const workbook = XLSX.utils.book_new();
 
-    const filterLabel = summaryDeptFilter === 'all'
-      ? 'All Departments'
-      : departments.find(d => d.id === summaryDeptFilter)?.name || 'Unknown';
+      const filterLabel = summaryDeptFilter === 'all'
+        ? 'All Departments'
+        : departments.find(d => d.id === summaryDeptFilter)?.name || 'Unknown';
 
-    const employeeTypeLabel = employeeTypeFilter === 'all'
-      ? 'All Employees'
-      : employeeTypeFilter === 'regular'
-      ? 'Regular Employees Only'
-      : 'Temp Employees Only';
+      const employeeTypeLabel = employeeTypeFilter === 'all'
+        ? 'All Employees'
+        : employeeTypeFilter === 'regular'
+        ? 'Regular Employees Only'
+        : 'Temp Employees Only';
 
-    const filteredEmployees = employees.filter(emp => {
-      const matchesType = employeeTypeFilter === 'all' ||
-        (employeeTypeFilter === 'temp' && emp.is_temp) ||
-        (employeeTypeFilter === 'regular' && !emp.is_temp);
-      return matchesType;
-    });
+      const filteredEmployees = employees.filter(emp => {
+        const matchesType = employeeTypeFilter === 'all' ||
+          (employeeTypeFilter === 'temp' && emp.is_temp) ||
+          (employeeTypeFilter === 'regular' && !emp.is_temp);
+        return matchesType;
+      });
 
-    const data: any[] = [];
+      const data: any[] = [];
 
-    filteredEmployees.forEach(employee => {
-      employee.entries.forEach(entry => {
-        const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
-        if (!matchesDept) return;
+      filteredEmployees.forEach(employee => {
+        employee.entries.forEach(entry => {
+          const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
+          if (!matchesDept) return;
 
-        const task = entry.task;
-        const startTime = new Date(entry.start_time);
-        const endTime = entry.end_time ? new Date(entry.end_time) : null;
-        const duration = entry.duration_minutes || 0;
+          const task = entry.task;
+          const startTime = new Date(entry.start_time);
+          const endTime = entry.end_time ? new Date(entry.end_time) : null;
+          const duration = entry.duration_minutes || 0;
 
-        data.push({
-          'Date': entry.entry_date,
-          'Task': task.name,
-          'Associates': employee.name,
-          'Notes': task.name,
-          'Task Start': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          'Task End': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00',
-          'Duration': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
+          data.push({
+            'Date': entry.entry_date,
+            'Task': task?.name || 'Unknown',
+            'Associates': employee.name,
+            'Notes': task?.name || 'Unknown',
+            'Task Start': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            'Task End': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00',
+            'Duration': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
+          });
         });
       });
-    });
 
-    const taskGroups = new Map<string, any[]>();
-    data.forEach(row => {
-      const task = row['Task'];
-      if (!taskGroups.has(task)) {
-        taskGroups.set(task, []);
+      const taskGroups = new Map<string, any[]>();
+      data.forEach(row => {
+        const task = row['Task'];
+        if (!taskGroups.has(task)) {
+          taskGroups.set(task, []);
+        }
+        taskGroups.get(task)!.push(row);
+      });
+
+      const filterData: any[] = [];
+
+      filterData.push({
+        'A': 'Date Range:',
+        'B': `${startDate} to ${endDate}`
+      });
+
+      filterData.push({
+        'A': 'Department:',
+        'B': filterLabel
+      });
+
+      filterData.push({
+        'A': 'Employee Type:',
+        'B': employeeTypeLabel
+      });
+
+      filterData.push({});
+
+      const finalData: any[] = [];
+      let taskIndex = 1;
+      let grandTotal = 0;
+
+      taskGroups.forEach((rows, taskName) => {
+        const taskTotal = rows.reduce((sum, row) => sum + parseFloat(row['Duration'] || 0), 0);
+        grandTotal += taskTotal;
+
+        const uniqueEmployees = new Set(rows.map(r => r['Associates']));
+        const employeeCount = uniqueEmployees.size;
+
+        rows.forEach((row, index) => {
+          finalData.push({
+            '#': index === 0 ? taskIndex.toString() : '',
+            'Date': row['Date'],
+            'Task': index === 0 ? taskName : '',
+            'Associates': row['Associates'],
+            'Employee Count': index === 0 ? employeeCount.toString() : '',
+            'Notes': row['Notes'],
+            'Task Start': row['Task Start'],
+            'Task End': row['Task End'],
+            'Total': index === 0 ? taskTotal.toFixed(2) : ''
+          });
+        });
+        taskIndex++;
+      });
+
+      finalData.push({
+        '#': '',
+        'Date': '',
+        'Task': '',
+        'Associates': '',
+        'Employee Count': '',
+        'Notes': '',
+        'Task Start': '',
+        'Task End': 'Total hours',
+        'Total': grandTotal.toFixed(2)
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(filterData, { skipHeader: true });
+      XLSX.utils.sheet_add_json(worksheet, finalData, { origin: -1 });
+
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col <= 1; col++) {
+          const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!worksheet[cellRef]) continue;
+          worksheet[cellRef].s = {
+            font: { bold: true, sz: 11 }
+          };
+        }
       }
-      taskGroups.get(task)!.push(row);
-    });
 
-    const filterData: any[] = [];
+      worksheet['!cols'] = [
+        { wch: 5 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 25 },
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 10 }
+      ];
 
-    filterData.push({
-      'A': 'Date Range:',
-      'B': `${startDate} to ${endDate}`
-    });
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
 
-    filterData.push({
-      'A': 'Department:',
-      'B': filterLabel
-    });
+      const individualData: any[] = [];
+      filteredEmployees.forEach(employee => {
+        employee.entries.forEach(entry => {
+          const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
+          if (!matchesDept) return;
 
-    filterData.push({
-      'A': 'Employee Type:',
-      'B': employeeTypeLabel
-    });
+          const startTime = new Date(entry.start_time);
+          const endTime = entry.end_time ? new Date(entry.end_time) : null;
+          const duration = entry.duration_minutes || 0;
 
-    filterData.push({});
-
-    const finalData: any[] = [];
-    let taskIndex = 1;
-    let grandTotal = 0;
-
-    taskGroups.forEach((rows, taskName) => {
-      const taskTotal = rows.reduce((sum, row) => sum + parseFloat(row['Duration'] || 0), 0);
-      grandTotal += taskTotal;
-
-      const uniqueEmployees = new Set(rows.map(r => r['Associates']));
-      const employeeCount = uniqueEmployees.size;
-
-      rows.forEach((row, index) => {
-        finalData.push({
-          '#': index === 0 ? taskIndex.toString() : '',
-          'Date': row['Date'],
-          'Task': index === 0 ? taskName : '',
-          'Associates': row['Associates'],
-          'Employee Count': index === 0 ? employeeCount.toString() : '',
-          'Notes': row['Notes'],
-          'Task Start': row['Task Start'],
-          'Task End': row['Task End'],
-          'Total': index === 0 ? taskTotal.toFixed(2) : ''
+          individualData.push({
+            'Employee Name': employee.name,
+            'Employee ID': employee.employee_code,
+            'Employee Type': employee.is_temp ? 'Temp' : 'Regular',
+            'Date': entry.entry_date,
+            'Department': entry.department?.name || 'Unknown',
+            'Task': entry.task?.name || 'Unknown',
+            'Start Time': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            'End Time': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'In Progress',
+            'Duration (hours)': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
+          });
         });
       });
-      taskIndex++;
-    });
 
-    finalData.push({
-      '#': '',
-      'Date': '',
-      'Task': '',
-      'Associates': '',
-      'Employee Count': '',
-      'Notes': '',
-      'Task Start': '',
-      'Task End': 'Total hours',
-      'Total': grandTotal.toFixed(2)
-    });
+      const individualSheet = XLSX.utils.json_to_sheet(individualData);
+      individualSheet['!cols'] = [
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 25 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 15 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, individualSheet, 'Individual Details');
 
-    const worksheet = XLSX.utils.json_to_sheet(filterData, { skipHeader: true });
-    XLSX.utils.sheet_add_json(worksheet, finalData, { origin: -1 });
-
-    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col <= 1; col++) {
-        const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
-        if (!worksheet[cellRef]) continue;
-        worksheet[cellRef].s = {
-          font: { bold: true, sz: 11 }
-        };
-      }
+      XLSX.writeFile(workbook, `time_report_${startDate}_to_${endDate}.xlsx`);
+      console.log('Excel report generated successfully');
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      alert('Failed to generate Excel report. Please try again.');
     }
-
-    worksheet['!cols'] = [
-      { wch: 5 },
-      { wch: 12 },
-      { wch: 20 },
-      { wch: 25 },
-      { wch: 12 },
-      { wch: 30 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 }
-    ];
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
-
-    const individualData: any[] = [];
-    filteredEmployees.forEach(employee => {
-      employee.entries.forEach(entry => {
-        const matchesDept = summaryDeptFilter === 'all' || entry.department_id === summaryDeptFilter;
-        if (!matchesDept) return;
-
-        const startTime = new Date(entry.start_time);
-        const endTime = entry.end_time ? new Date(entry.end_time) : null;
-        const duration = entry.duration_minutes || 0;
-
-        individualData.push({
-          'Employee Name': employee.name,
-          'Employee ID': employee.employee_code,
-          'Employee Type': employee.is_temp ? 'Temp' : 'Regular',
-          'Date': entry.entry_date,
-          'Department': entry.department?.name || 'Unknown',
-          'Task': entry.task?.name || 'Unknown',
-          'Start Time': startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          'End Time': endTime ? endTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'In Progress',
-          'Duration (hours)': duration > 0 ? (duration / 60).toFixed(2) : '0.00'
-        });
-      });
-    });
-
-    const individualSheet = XLSX.utils.json_to_sheet(individualData);
-    individualSheet['!cols'] = [
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 20 },
-      { wch: 25 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 15 }
-    ];
-    XLSX.utils.book_append_sheet(workbook, individualSheet, 'Individual Details');
-
-    XLSX.writeFile(workbook, `time_report_${startDate}_to_${endDate}.xlsx`);
   };
 
   if (!isAuthenticated) {
