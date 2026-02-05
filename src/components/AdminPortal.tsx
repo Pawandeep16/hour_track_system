@@ -178,13 +178,19 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   const loadEmployeesWithEntries = async () => {
     console.log(`[AdminPortal] Loading employees with entries for date range: ${startDate} to ${endDate}`);
 
-    const { data: allEmployees } = await firebaseDb
+    const { data: allEmployees, error: empError } = await firebaseDb
       .from('employees')
       .select('*')
       .order('name');
 
-    if (!allEmployees) {
+    if (empError) {
+      console.error('[AdminPortal] Error loading employees:', empError);
+      return;
+    }
+
+    if (!allEmployees || allEmployees.length === 0) {
       console.log('[AdminPortal] No employees found in database');
+      setEmployees([]);
       return;
     }
 
@@ -194,27 +200,41 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
     const { data: allDepartments } = await firebaseDb.from<Department>('departments').select('*');
     const { data: allShifts } = await firebaseDb.from<Shift>('shifts').select('*');
 
+    console.log(`[AdminPortal] Loaded ${allTasks?.length || 0} tasks, ${allDepartments?.length || 0} departments, ${allShifts?.length || 0} shifts`);
+
     const tasksMap = new Map(allTasks?.map(t => [t.id, t]) || []);
     const departmentsMap = new Map(allDepartments?.map(d => [d.id, d]) || []);
     const shiftsMap = new Map(allShifts?.map(s => [s.id, s]) || []);
 
     const employeesWithData = await Promise.all(
       allEmployees.map(async (employee) => {
-        const { data: entriesData } = await firebaseDb
+        const { data: entriesData, error: entriesError } = await firebaseDb
           .from('time_entries')
           .select('*')
           .eq('employee_id', employee.id)
           .gte('entry_date', startDate)
           .lte('entry_date', endDate);
 
+        if (entriesError) {
+          console.error(`[AdminPortal] Error loading entries for ${employee.name}:`, entriesError);
+        }
+
         console.log(`[AdminPortal] Employee ${employee.name}: found ${entriesData?.length || 0} time entries`);
 
-        const entries = (entriesData || []).map((entry: any) => ({
-          ...entry,
-          task: tasksMap.get(entry.task_id),
-          department: departmentsMap.get(entry.department_id),
-          shift: entry.shift_id ? shiftsMap.get(entry.shift_id) : null
-        })).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
+        const entries = (entriesData || []).map((entry: any) => {
+          const task = tasksMap.get(entry.task_id);
+          const department = departmentsMap.get(entry.department_id);
+
+          if (!task) console.warn(`[AdminPortal] Task not found for entry ${entry.id}, task_id: ${entry.task_id}`);
+          if (!department) console.warn(`[AdminPortal] Department not found for entry ${entry.id}, department_id: ${entry.department_id}`);
+
+          return {
+            ...entry,
+            task: task || { id: entry.task_id, name: 'Unknown Task' },
+            department: department || { id: entry.department_id, name: 'Unknown Department' },
+            shift: entry.shift_id ? shiftsMap.get(entry.shift_id) : null
+          };
+        }).sort((a: any, b: any) => a.start_time.localeCompare(b.start_time));
 
         const { data: breaksData } = await firebaseDb
           .from('break_entries')
@@ -251,6 +271,7 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
 
     const filteredEmployees = employeesWithData.filter(e => e.entries.length > 0 || e.breaks.length > 0);
     console.log(`[AdminPortal] Total employees with entries: ${filteredEmployees.length}`);
+    console.log(`[AdminPortal] Employees with data:`, filteredEmployees.map(e => ({ name: e.name, entries: e.entries.length })));
     setEmployees(filteredEmployees);
   };
 
@@ -659,6 +680,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const generatePDFReport = () => {
+    console.log(`[AdminPortal] Generating PDF report with ${employees.length} employees`);
+
+    if (employees.length === 0) {
+      alert('No data available to generate report. Please select a date range with employee entries.');
+      return;
+    }
+
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -796,6 +824,13 @@ export default function AdminPortal({ onLoginStateChange }: AdminPortalProps) {
   };
 
   const generateExcelReport = () => {
+    console.log(`[AdminPortal] Generating Excel report with ${employees.length} employees`);
+
+    if (employees.length === 0) {
+      alert('No data available to generate report. Please select a date range with employee entries.');
+      return;
+    }
+
     try {
       const workbook = XLSX.utils.book_new();
 
