@@ -311,7 +311,9 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         start_time: startTime,
         shift_id: detectedShift?.id || null,
         entry_date: getLocalDate()
-      });
+      })
+      .select()
+      .single();
 
     if (data) {
       setActiveEntry(data as any);
@@ -358,7 +360,9 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         break_type: breakType,
         start_time: getLocalDateTime(),
         entry_date: getLocalDate()
-      });
+      })
+      .select()
+      .single();
 
     if (data) {
       setActiveBreak(data as any);
