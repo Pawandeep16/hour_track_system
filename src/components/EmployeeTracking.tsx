@@ -309,6 +309,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         department_id: selectedDepartment,
         task_id: selectedTask,
         start_time: startTime,
+        end_time: null,
         shift_id: detectedShift?.id || null,
         entry_date: getLocalDate()
       });
@@ -357,6 +358,7 @@ export default function EmployeeTracking({ onLoginStateChange }: EmployeeTrackin
         employee_id: currentEmployee.id,
         break_type: breakType,
         start_time: getLocalDateTime(),
+        end_time: null,
         entry_date: getLocalDate()
       });
 
